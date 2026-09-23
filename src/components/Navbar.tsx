@@ -20,10 +20,6 @@ interface NavbarProps {
   onResetData: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
-  customLogoUrl?: string | null;
-  customLogoLight?: string | null;
-  customLogoDark?: string | null;
-  onOpenLogoManager: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -35,17 +31,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   onResetData,
   theme,
   onToggleTheme,
-  customLogoUrl,
-  customLogoLight,
-  customLogoDark,
-  onOpenLogoManager,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Zone 1: Brand Wordmark + Logo Settings Button */}
-          <div className="flex items-center gap-2">
+          {/* Zone 1: Official Fixed Shineray Brand */}
+          <div className="flex items-center">
             <button
               onClick={() => onNavigate('home')}
               className="flex items-center text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E30613] rounded-lg transition-transform hover:opacity-95"
@@ -53,20 +45,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <ShinerayLogo 
                 size="md" 
-                customLogoUrl={customLogoUrl} 
-                customLogoLight={customLogoLight}
-                customLogoDark={customLogoDark}
                 theme={theme}
               />
-            </button>
-
-            <button
-              type="button"
-              onClick={onOpenLogoManager}
-              title="Personalizar Logotipos Shineray (Modo Claro e Modo Escuro)"
-              className="p-1.5 text-neutral-400 hover:text-[#E30613] dark:hover:text-red-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors ml-0.5"
-            >
-              <ImageIcon className="w-3.5 h-3.5" />
             </button>
           </div>
 

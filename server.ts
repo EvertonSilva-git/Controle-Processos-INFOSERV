@@ -72,6 +72,63 @@ function writeProcessos(processos: any[]) {
   }
 }
 
+function findPublicLogos() {
+  const publicDir = path.resolve(__dirname, 'public');
+  const imagesDir = path.resolve(publicDir, 'images');
+  const imageDir = path.resolve(publicDir, 'image');
+
+  // Conforme solicitação do usuário:
+  // logo_modoclaro.png -> Tema Modo Claro
+  // logo_claro.png -> Tema Noturno / Escuro
+  let lightLogo = '/images/logo_modoclaro.png';
+  let darkLogo = '/images/logo_claro.png';
+
+  const checkDirs = [
+    { dir: imagesDir, prefix: '/images/' },
+    { dir: publicDir, prefix: '/' },
+    { dir: imageDir, prefix: '/image/' },
+  ];
+
+  for (const { dir, prefix } of checkDirs) {
+    if (!fs.existsSync(dir)) continue;
+    try {
+      const files = fs.readdirSync(dir);
+      for (const f of files) {
+        const lower = f.toLowerCase();
+        const isImg =
+          lower.endsWith('.png') ||
+          lower.endsWith('.jpg') ||
+          lower.endsWith('.jpeg') ||
+          lower.endsWith('.svg') ||
+          lower.endsWith('.webp');
+
+        if (!isImg) continue;
+
+        // Regra do Usuário: logo_modoclaro -> Modo Claro
+        if (
+          lower === 'logo_modoclaro.png' ||
+          lower === 'logo-modoclaro.png' ||
+          lower.includes('modoclaro')
+        ) {
+          lightLogo = prefix + f;
+        }
+
+        // Regra do Usuário: logo_claro -> Tema Noturno
+        if (
+          lower === 'logo_claro.png' ||
+          lower === 'logo-claro.png'
+        ) {
+          darkLogo = prefix + f;
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao varrer diretório:', dir, e);
+    }
+  }
+
+  return { lightLogo, darkLogo };
+}
+
 async function startServer() {
   const app = express();
 
@@ -84,34 +141,24 @@ async function startServer() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // Global Logos API (persisted on server for ALL users)
+  // Global Logos API: Automatically detects any images placed in /public or /public/images
   app.get('/api/settings/logos', (_req, res) => {
-    const settings = readSettings();
+    const { lightLogo, darkLogo } = findPublicLogos();
     res.json({
-      customLogoLight: settings.customLogoLight || null,
-      customLogoDark: settings.customLogoDark || null,
+      customLogoLight: lightLogo,
+      customLogoDark: darkLogo,
+      autoDetected: true,
     });
   });
 
-  app.post('/api/settings/logos', (req, res) => {
-    const { customLogoLight, customLogoDark } = req.body;
-    const current = readSettings();
-    const updated = {
-      ...current,
-      customLogoLight: customLogoLight !== undefined ? customLogoLight : current.customLogoLight,
-      customLogoDark: customLogoDark !== undefined ? customLogoDark : current.customLogoDark,
-    };
-
-    const success = writeSettings(updated);
-    if (success) {
-      res.json({
-        success: true,
-        customLogoLight: updated.customLogoLight,
-        customLogoDark: updated.customLogoDark,
-      });
-    } else {
-      res.status(500).json({ success: false, error: 'Falha ao salvar configurações' });
-    }
+  app.post('/api/settings/logos', (_req, res) => {
+    const { lightLogo, darkLogo } = findPublicLogos();
+    res.json({
+      success: true,
+      message: 'Logotipos gerenciados automaticamente através da pasta /public.',
+      customLogoLight: lightLogo,
+      customLogoDark: darkLogo,
+    });
   });
 
   // Global Processos API (shared across all users)

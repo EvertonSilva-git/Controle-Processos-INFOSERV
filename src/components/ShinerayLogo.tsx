@@ -1,114 +1,173 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface ShinerayLogoProps {
   size?: 'sm' | 'md' | 'lg';
   showSubtitle?: boolean;
   className?: string;
-  customLogoUrl?: string | null;
-  customLogoLight?: string | null;
-  customLogoDark?: string | null;
   theme?: 'light' | 'dark';
+  customLogoUrl?: string | null;
 }
 
+/**
+ * ShinerayLogo - Carregamento Automático de Imagens dos Arquivos do App
+ * Busca automaticamente qualquer imagem adicionada à pasta /public ou /public/images:
+ * - Modo Claro: logo_shineray_final.png, logo-light.png, logo-claro.png, etc.
+ * - Modo Noturno: Logo-Shineray (1).png, Logo-Shineray.png, logo-dark.png, etc.
+ * Caso o arquivo ainda não tenha sido adicionado, exibe instantaneamente o emblema vetorial oficial.
+ */
 export const ShinerayLogo: React.FC<ShinerayLogoProps> = ({
   size = 'md',
   showSubtitle = true,
   className = '',
+  theme = 'light',
   customLogoUrl,
-  customLogoLight,
-  customLogoDark,
-  theme,
 }) => {
-  const iconSizes = {
-    sm: 'w-6 h-6',
-    md: 'w-8 h-8',
-    lg: 'w-10 h-10',
-  };
+  const isDark = theme === 'dark';
 
   const imgHeights = {
-    sm: 'h-6',
+    sm: 'h-6 sm:h-7',
     md: 'h-8 sm:h-9',
     lg: 'h-10 sm:h-12',
+  }[size];
+
+  const dimensions = {
+    sm: { width: 170, height: 28 },
+    md: { width: 220, height: 36 },
+    lg: { width: 270, height: 44 },
+  }[size];
+
+  // Candidates for light and dark modes in priority order
+  // Conforme solicitação: logo_modoclaro = Modo Claro | logo_claro = Tema Noturno
+  const lightCandidates = [
+    customLogoUrl,
+    '/images/logo_modoclaro.png',
+    '/logo_modoclaro.png',
+    '/image/logo_modoclaro.png',
+    '/logo-light.png',
+  ].filter(Boolean) as string[];
+
+  const darkCandidates = [
+    customLogoUrl,
+    '/images/logo_claro.png',
+    '/logo_claro.png',
+    '/image/logo_claro.png',
+    '/logo-dark.png',
+  ].filter(Boolean) as string[];
+
+  const candidateList = isDark ? darkCandidates : lightCandidates;
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const [imageFailedAll, setImageFailedAll] = useState(false);
+
+  // Reset candidate index when theme changes
+  useEffect(() => {
+    setCandidateIndex(0);
+    setImageFailedAll(false);
+  }, [theme, customLogoUrl]);
+
+  const currentSrc = candidateList[candidateIndex];
+
+  const handleImageError = () => {
+    if (candidateIndex + 1 < candidateList.length) {
+      setCandidateIndex((prev) => prev + 1);
+    } else {
+      setImageFailedAll(true);
+    }
   };
 
-  const textSizes = {
-    sm: 'text-base',
-    md: 'text-xl',
-    lg: 'text-2xl',
-  };
+  const textColor = isDark ? '#FFFFFF' : '#111111';
+  const textStroke = isDark ? '#FFFFFF' : 'none';
+  const textStrokeWidth = isDark ? '0.75' : '0';
 
-  // Determine active logo url based on theme
-  let resolvedLogoUrl: string | null = null;
-
-  if (theme === 'dark') {
-    resolvedLogoUrl = customLogoDark || customLogoUrl || customLogoLight || null;
-  } else if (theme === 'light') {
-    resolvedLogoUrl = customLogoLight || customLogoUrl || null;
-  } else {
-    // If theme not explicitly passed, check direct customLogoUrl or customLogoLight
-    resolvedLogoUrl = customLogoUrl || customLogoLight || customLogoDark || null;
-  }
-
-  // If an official logo image is active
-  if (resolvedLogoUrl) {
-    return (
-      <div className={`flex items-center gap-2.5 select-none ${className}`}>
-        <img
-          src={resolvedLogoUrl}
-          alt="Shineray do Brasil"
-          className={`${imgHeights[size]} w-auto object-contain max-w-[220px] transition-all`}
-        />
-        {showSubtitle && (
-          <div className="hidden sm:flex flex-col border-l border-neutral-200 dark:border-neutral-700 pl-2.5 ml-0.5">
-            <span className="text-[10px] uppercase font-black tracking-widest text-[#E30613]">
-              INFOSERV
-            </span>
-            <span className="text-[9px] uppercase font-bold tracking-wider text-neutral-500 dark:text-neutral-400">
-              IBAMA · PROMOT
-            </span>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Default Vector SVG Logo
   return (
-    <div className={`flex items-center gap-2.5 select-none ${className}`}>
-      {/* Shineray 4-point Dynamic Red Cross Icon */}
-      <svg
-        className={`${iconSizes[size]} shrink-0`}
-        viewBox="0 0 100 100"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true"
-      >
-        {/* Top-Left Wing */}
-        <polygon points="12,14 44,44 26,50" fill="#E30613" />
-        {/* Top-Right Wing */}
-        <polygon points="88,14 56,44 74,50" fill="#C40510" />
-        {/* Bottom-Left Wing */}
-        <polygon points="12,86 44,56 26,50" fill="#E30613" />
-        {/* Bottom-Right Wing */}
-        <polygon points="88,86 56,56 74,50" fill="#E30613" />
-        {/* Center core dynamic cross */}
-        <polygon points="44,44 56,44 88,14 78,8 50,38 22,8 12,14" fill="#E30613" />
-        <polygon points="44,56 56,56 88,86 78,92 50,62 22,92 12,86" fill="#D70511" />
-      </svg>
+    <div className={`flex items-center gap-2 select-none ${className}`}>
+      {/* If an image candidate is available, load it directly */}
+      {!imageFailedAll && currentSrc ? (
+        <img
+          src={currentSrc}
+          alt="Shineray do Brasil"
+          referrerPolicy="no-referrer"
+          onError={handleImageError}
+          className={`${imgHeights} w-auto object-contain max-w-[240px] transition-all`}
+        />
+      ) : (
+        /* Native Fallback Vector SVG Graphic */
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 460 76"
+          style={{ width: `${dimensions.width}px`, height: `${dimensions.height}px` }}
+          className="w-auto shrink-0 transition-opacity"
+          fill="none"
+          aria-label="Shineray do Brasil"
+        >
+          {/* Shineray 4-point Dynamic Red Star Emblem */}
+          <g id="shineray-emblem">
+            {/* Top-Left Wing */}
+            <polygon points="38,38 4,4 38,28" fill="#E30613" />
+            <polygon points="38,38 4,4 28,38" fill="#B3050F" />
+            
+            {/* Bottom-Left Wing */}
+            <polygon points="38,38 4,72 28,38" fill="#B3050F" />
+            <polygon points="38,38 4,72 38,48" fill="#E30613" />
+            
+            {/* Top-Right Wing */}
+            <polygon points="38,38 72,4 38,28" fill="#E30613" />
+            <polygon points="38,38 72,4 48,38" fill="#B3050F" />
+            
+            {/* Bottom-Right Wing */}
+            <polygon points="38,38 72,72 48,38" fill="#B3050F" />
+            <polygon points="38,38 72,72 38,48" fill="#E30613" />
 
-      {/* Brand Text: SH / NERAY */}
-      <div className="flex flex-col">
-        <div className={`font-extrabold tracking-tight leading-none ${textSizes[size]} text-neutral-900 dark:text-white flex items-center`}>
-          <span className="tracking-tighter">SH</span>
-          <span className="text-[#E30613] font-black mx-[1.5px] italic text-[1.08em] select-none">/</span>
-          <span className="tracking-tight">NERAY</span>
-        </div>
-        {showSubtitle && (
-          <span className="text-[10px] uppercase font-bold tracking-widest text-[#E30613] mt-0.5">
-            INFOSERV · HOMOLOGAÇÃO
+            {/* Center dynamic core */}
+            <polygon points="38,28 48,38 38,48 28,38" fill="#E30613" />
+            <circle cx="38" cy="38" r="2.5" fill="#D70511" />
+          </g>
+
+          {/* Brand Typography: SH */}
+          <text 
+            x="90" 
+            y="56" 
+            fontFamily="'Plus Jakarta Sans', 'Arial Black', 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif" 
+            fontWeight="900" 
+            fontSize="52" 
+            letterSpacing="-1px" 
+            fill={textColor}
+            stroke={textStroke}
+            strokeWidth={textStrokeWidth}
+          >
+            SH
+          </text>
+
+          {/* Dynamic Forward Slash "/" (Official Red Accent) */}
+          <polygon points="179,56 195,17 210,17 194,56" fill="#E30613" />
+
+          {/* Brand Typography: NERAY */}
+          <text 
+            x="214" 
+            y="56" 
+            fontFamily="'Plus Jakarta Sans', 'Arial Black', 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif" 
+            fontWeight="900" 
+            fontSize="52" 
+            letterSpacing="-0.5px" 
+            fill={textColor}
+            stroke={textStroke}
+            strokeWidth={textStrokeWidth}
+          >
+            NERAY
+          </text>
+        </svg>
+      )}
+
+      {/* Infoserv System Badge */}
+      {showSubtitle && (
+        <div className="hidden sm:flex flex-col border-l border-neutral-200 dark:border-neutral-800 pl-2.5 ml-1">
+          <span className="text-[10px] uppercase font-black tracking-widest text-[#E30613] leading-tight">
+            INFOSERV
           </span>
-        )}
-      </div>
+          <span className="text-[9px] uppercase font-bold tracking-wider text-neutral-500 dark:text-neutral-400 leading-tight">
+            IBAMA · PROMOT
+          </span>
+        </div>
+      )}
     </div>
   );
 };

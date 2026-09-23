@@ -7,6 +7,7 @@ import {
   formatarDataBR,
 } from '../utils/processCalculations';
 import { RevalidationAlertBanner } from './RevalidationAlertBanner';
+import { ClassificationTypesBar } from './ClassificationTypesBar';
 import {
   Search,
   MessageSquare,
@@ -255,6 +256,16 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
           })}
         </div>
       </div>
+
+      {/* Classificação por Tipo de Homologação (LCVM, LCM, Especial, Dispensa, Extensão) */}
+      <ClassificationTypesBar
+        processos={processos}
+        selectedTipo={tipoFiltro}
+        onSelectTipo={(tipo) => onTipoFiltroChange && onTipoFiltroChange(tipo)}
+        onEditProcesso={onEditProcesso}
+        onOpenObservations={onOpenObservations}
+        onNavigateToCadastro={onNavigateToCadastro}
+      />
 
       {/* Filter and Search Bar */}
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 shadow-sm space-y-3">

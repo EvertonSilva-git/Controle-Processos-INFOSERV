@@ -8,13 +8,9 @@ import { ProcessFormScreen } from './components/ProcessFormScreen';
 import { ProcessesScreen } from './components/ProcessesScreen';
 import { ObservationModal } from './components/ObservationModal';
 import { EditProcessModal } from './components/EditProcessModal';
-import { LogoManagerModal } from './components/LogoManagerModal';
 
 const STORAGE_KEY = 'shineray_infoserv_processos_v1';
 const THEME_STORAGE_KEY = 'shineray_infoserv_theme';
-const LOGO_LIGHT_STORAGE_KEY = 'shineray_custom_logo_light';
-const LOGO_DARK_STORAGE_KEY = 'shineray_custom_logo_dark';
-const LEGACY_LOGO_STORAGE_KEY = 'shineray_custom_logo';
 
 export default function App() {
   // Theme state: light or dark
@@ -32,29 +28,6 @@ export default function App() {
     }
     return 'light';
   });
-
-  // Dual Custom Logo states: Light and Dark
-  const [customLogoLight, setCustomLogoLight] = useState<string | null>(() => {
-    try {
-      return (
-        localStorage.getItem(LOGO_LIGHT_STORAGE_KEY) ||
-        localStorage.getItem(LEGACY_LOGO_STORAGE_KEY) ||
-        null
-      );
-    } catch {
-      return null;
-    }
-  });
-
-  const [customLogoDark, setCustomLogoDark] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(LOGO_DARK_STORAGE_KEY) || null;
-    } catch {
-      return null;
-    }
-  });
-
-  const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
 
   // Sync theme class with document root
   useEffect(() => {
@@ -74,33 +47,23 @@ export default function App() {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
-  // Fetch global settings (logos) and shared processes from server on initial load
+  // Load initial state from localStorage or seed
+  const [processos, setProcessos] = useState<Processo[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Erro ao ler localStorage', e);
+    }
+    return INITIAL_PROCESSOS;
+  });
+
+  // Fetch shared processes from server on initial load & synchronize periodically
   useEffect(() => {
     const fetchGlobalServerData = async () => {
       try {
-        // 1. Fetch Global Logos
-        const logoRes = await fetch('/api/settings/logos');
-        if (logoRes.ok) {
-          const data = await logoRes.json();
-          if (data.customLogoLight !== undefined) {
-            setCustomLogoLight(data.customLogoLight);
-            if (data.customLogoLight) {
-              localStorage.setItem(LOGO_LIGHT_STORAGE_KEY, data.customLogoLight);
-            } else {
-              localStorage.removeItem(LOGO_LIGHT_STORAGE_KEY);
-            }
-          }
-          if (data.customLogoDark !== undefined) {
-            setCustomLogoDark(data.customLogoDark);
-            if (data.customLogoDark) {
-              localStorage.setItem(LOGO_DARK_STORAGE_KEY, data.customLogoDark);
-            } else {
-              localStorage.removeItem(LOGO_DARK_STORAGE_KEY);
-            }
-          }
-        }
-
-        // 2. Fetch Global Processos
         const procRes = await fetch('/api/processos');
         if (procRes.ok) {
           const procData = await procRes.json();
@@ -121,56 +84,26 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSaveLogos = async (lightUrl: string | null, darkUrl: string | null) => {
-    setCustomLogoLight(lightUrl);
-    setCustomLogoDark(darkUrl);
+  // Navigation with persistence
+  const [currentTab, setCurrentTab] = useState<'home' | 'processos' | 'cadastro'>(() => {
     try {
-      if (lightUrl) {
-        localStorage.setItem(LOGO_LIGHT_STORAGE_KEY, lightUrl);
-        localStorage.setItem(LEGACY_LOGO_STORAGE_KEY, lightUrl);
-      } else {
-        localStorage.removeItem(LOGO_LIGHT_STORAGE_KEY);
-        localStorage.removeItem(LEGACY_LOGO_STORAGE_KEY);
+      const savedTab = localStorage.getItem('shineray_active_tab');
+      if (savedTab === 'home' || savedTab === 'processos' || savedTab === 'cadastro') {
+        return savedTab;
       }
-
-      if (darkUrl) {
-        localStorage.setItem(LOGO_DARK_STORAGE_KEY, darkUrl);
-      } else {
-        localStorage.removeItem(LOGO_DARK_STORAGE_KEY);
-      }
-
-      // Persist on the server so ALL users accessing the system see the updated logos!
-      await fetch('/api/settings/logos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customLogoLight: lightUrl,
-          customLogoDark: darkUrl,
-        }),
-      });
     } catch (e) {
-      console.error('Erro ao salvar logos no servidor global:', e);
+      // fallback
     }
-  };
-
-  // Load initial state from localStorage or seed
-  const [processos, setProcessos] = useState<Processo[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch (err) {
-      console.error('Erro ao recuperar dados do localStorage:', err);
-    }
-    return INITIAL_PROCESSOS;
+    return 'home';
   });
 
-  // Navigation
-  const [currentTab, setCurrentTab] = useState<'home' | 'processos' | 'cadastro'>('home');
+  useEffect(() => {
+    try {
+      localStorage.setItem('shineray_active_tab', currentTab);
+    } catch (e) {
+      // ignore
+    }
+  }, [currentTab]);
   const [currentSubTab, setCurrentSubTab] = useState<ProcessosSubTab>('todos');
   const [tipoFiltro, setTipoFiltro] = useState<ProcessoTipo | null>(null);
 
@@ -309,9 +242,6 @@ export default function App() {
         onResetData={handleResetData}
         theme={theme}
         onToggleTheme={toggleTheme}
-        customLogoLight={customLogoLight}
-        customLogoDark={customLogoDark}
-        onOpenLogoManager={() => setIsLogoModalOpen(true)}
       />
 
       {/* Main Content Viewport */}
@@ -355,16 +285,6 @@ export default function App() {
           />
         )}
       </main>
-
-      {/* Logo Manager Modal (Dual Light/Dark Logo Support) */}
-      <LogoManagerModal
-        isOpen={isLogoModalOpen}
-        onClose={() => setIsLogoModalOpen(false)}
-        customLogoLight={customLogoLight}
-        customLogoDark={customLogoDark}
-        currentTheme={theme}
-        onSaveLogos={handleSaveLogos}
-      />
 
       {/* Observation History Modal */}
       <ObservationModal
