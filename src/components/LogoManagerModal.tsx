@@ -354,14 +354,25 @@ export const LogoManagerModal: React.FC<LogoManagerModalProps> = ({
             </div>
           </div>
 
-          {/* Explanatory banner */}
+          {/* Explanatory banner with Global Server Persistence Confirmation */}
+          <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-emerald-900 dark:text-emerald-200 text-xs flex gap-2.5">
+            <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+            <div className="text-[11px] leading-relaxed space-y-1">
+              <span className="font-extrabold text-emerald-950 dark:text-emerald-100 flex items-center gap-1.5">
+                <span>Armazenamento Centralizado (Para Todos os Usuários):</span>
+              </span>
+              As imagens configuradas aqui são gravadas no servidor central e sincronizadas automaticamente. <strong>Todos que acessarem o sistema (em qualquer computador, celular ou aba) verão os logotipos que você salvar!</strong>
+            </div>
+          </div>
+
+          {/* Tips banner */}
           <div className="p-3.5 bg-neutral-100 dark:bg-neutral-800/70 border border-neutral-200 dark:border-neutral-700 rounded-xl text-neutral-700 dark:text-neutral-300 text-xs flex gap-2.5">
             <Info className="w-4 h-4 text-[#E30613] shrink-0 mt-0.5" />
             <div className="text-[11px] leading-relaxed space-y-1">
               <span className="font-bold text-neutral-900 dark:text-white block">
-                Dica de identidade visual:
+                Dica de contraste e legibilidade:
               </span>
-              No <strong>Modo Claro</strong>, utilize uma versão com tipografia escura ou vermelha. No <strong>Modo Escuro</strong>, utilize uma versão com tipografia branca/clara ou o símbolo vazado sobre fundo escuro para máximo contraste e legibilidade.
+              No <strong>Modo Claro</strong>, utilize uma versão com tipografia preta ou vermelha. No <strong>Modo Escuro</strong>, utilize uma versão com tipografia branca/clara ou o símbolo vazado sobre fundo escuro para máximo contraste.
             </div>
           </div>
 
@@ -398,7 +409,7 @@ export const LogoManagerModal: React.FC<LogoManagerModalProps> = ({
               className="px-4 py-2 text-xs font-bold bg-[#E30613] hover:bg-[#C40510] text-white rounded-lg transition-colors shadow-sm flex items-center gap-1.5"
             >
               <Check className="w-3.5 h-3.5" />
-              <span>Salvar Logotipos</span>
+              <span>Salvar para Todos os Usuários</span>
             </button>
           </div>
         </div>

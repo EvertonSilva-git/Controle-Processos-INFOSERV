@@ -74,7 +74,54 @@ export default function App() {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
-  const handleSaveLogos = (lightUrl: string | null, darkUrl: string | null) => {
+  // Fetch global settings (logos) and shared processes from server on initial load
+  useEffect(() => {
+    const fetchGlobalServerData = async () => {
+      try {
+        // 1. Fetch Global Logos
+        const logoRes = await fetch('/api/settings/logos');
+        if (logoRes.ok) {
+          const data = await logoRes.json();
+          if (data.customLogoLight !== undefined) {
+            setCustomLogoLight(data.customLogoLight);
+            if (data.customLogoLight) {
+              localStorage.setItem(LOGO_LIGHT_STORAGE_KEY, data.customLogoLight);
+            } else {
+              localStorage.removeItem(LOGO_LIGHT_STORAGE_KEY);
+            }
+          }
+          if (data.customLogoDark !== undefined) {
+            setCustomLogoDark(data.customLogoDark);
+            if (data.customLogoDark) {
+              localStorage.setItem(LOGO_DARK_STORAGE_KEY, data.customLogoDark);
+            } else {
+              localStorage.removeItem(LOGO_DARK_STORAGE_KEY);
+            }
+          }
+        }
+
+        // 2. Fetch Global Processos
+        const procRes = await fetch('/api/processos');
+        if (procRes.ok) {
+          const procData = await procRes.json();
+          if (Array.isArray(procData.processos) && procData.processos.length > 0) {
+            setProcessos(procData.processos);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(procData.processos));
+          }
+        }
+      } catch (err) {
+        console.warn('API global indisponível ou offline. Usando cache local:', err);
+      }
+    };
+
+    fetchGlobalServerData();
+
+    // Check for updates every 15 seconds to keep all open browsers synchronized
+    const interval = setInterval(fetchGlobalServerData, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSaveLogos = async (lightUrl: string | null, darkUrl: string | null) => {
     setCustomLogoLight(lightUrl);
     setCustomLogoDark(darkUrl);
     try {
@@ -91,8 +138,18 @@ export default function App() {
       } else {
         localStorage.removeItem(LOGO_DARK_STORAGE_KEY);
       }
+
+      // Persist on the server so ALL users accessing the system see the updated logos!
+      await fetch('/api/settings/logos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customLogoLight: lightUrl,
+          customLogoDark: darkUrl,
+        }),
+      });
     } catch (e) {
-      console.error('Erro ao salvar logos no localStorage:', e);
+      console.error('Erro ao salvar logos no servidor global:', e);
     }
   };
 
@@ -121,10 +178,15 @@ export default function App() {
   const [observacaoModalProcesso, setObservacaoModalProcesso] = useState<Processo | null>(null);
   const [editModalProcesso, setEditModalProcesso] = useState<Processo | null>(null);
 
-  // Save to localStorage whenever processos change
+  // Save to localStorage & sync to server whenever processos change
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(processos));
+      fetch('/api/processos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ processos }),
+      }).catch((e) => console.warn('Erro ao sincronizar processos com servidor:', e));
     } catch (err) {
       console.error('Erro ao salvar no localStorage:', err);
     }
