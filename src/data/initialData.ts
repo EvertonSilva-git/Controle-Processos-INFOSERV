@@ -1,0 +1,228 @@
+import { Processo } from '../types/process';
+
+export const INITIAL_PROCESSOS: Processo[] = [
+  {
+    id: 'proc-001',
+    tipo: 'LCM',
+    numeroSolicitacao: 'SL 2026.0142',
+    procedencia: 'Nacional',
+    mmv: 'SHINERAY/WORKER 125',
+    numeroLicenca: 'LCM-0842/2026-IBAMA',
+    quantidade: 'Restrita (3 a 50)',
+    tipoVeiculo: 'Motocicleta',
+    dataInicio: '2026-01-10',
+    situacao: 'Licença/Certidão emitida',
+    dataEnvio: '2026-01-18',
+    dataEmissao: '2026-02-28',
+    dataValidade: '2026-10-28', // ~35 days from Sept 23, 2026 -> PARA REVALIDAÇÃO
+    observacoes: [
+      {
+        id: 'obs-001',
+        texto: 'Processo protocolado com êxito no Infoserv. Ensaios de emissão de poluentes anexados.',
+        dataHora: '2026-01-18T10:15:00',
+        autor: 'Engenharia de Homologação Shineray'
+      },
+      {
+        id: 'obs-002',
+        texto: 'Licença emitida pelo IBAMA. Iniciar monitoramento para ciclo de revalidação.',
+        dataHora: '2026-02-28T16:40:00',
+        autor: 'Analista de Regulatório'
+      }
+    ],
+    criadoEm: '2026-01-10T09:00:00',
+    atualizadoEm: '2026-02-28T16:40:00'
+  },
+  {
+    id: 'proc-002',
+    tipo: 'LCVM',
+    numeroSolicitacao: 'SL 2026.0210',
+    procedencia: 'Nacional',
+    mmv: 'SHINERAY/T20 PICKUP CABINE SIMPLES 1.0',
+    numeroLicenca: 'LCVM-0114/2026-IBAMA',
+    quantidade: 'Restrita (3 a 100)',
+    tipoVeiculo: 'Veículo leve comercial',
+    dataInicio: '2026-02-05',
+    situacao: 'Licença/Certidão emitida',
+    dataEnvio: '2026-02-14',
+    dataEmissao: '2026-04-02',
+    dataValidade: '2026-11-12', // ~50 days from Sept 23, 2026 -> PARA REVALIDAÇÃO
+    observacoes: [
+      {
+        id: 'obs-003',
+        texto: 'Documentação do ensaio de evaporativa e ruído enviada via portal Infoserv.',
+        dataHora: '2026-02-14T11:20:00',
+        autor: 'Setor de Homologação'
+      },
+      {
+        id: 'obs-004',
+        texto: 'Validade expira em menos de 60 dias. Reunião agendada com laboratório para nova amostragem.',
+        dataHora: '2026-09-15T14:30:00',
+        autor: 'Gerência de Qualidade'
+      }
+    ],
+    criadoEm: '2026-02-05T08:30:00',
+    atualizadoEm: '2026-09-15T14:30:00'
+  },
+  {
+    id: 'proc-003',
+    tipo: 'LCM Especial',
+    numeroSolicitacao: 'SL 2026.0315',
+    procedencia: 'Importado',
+    mmv: 'I/SHINERAY/STORM 200 PRO OFFROAD',
+    numeroLicenca: '',
+    quantidade: 'Limitada (1 a 2)',
+    tipoVeiculo: 'Motocicleta fora de estrada',
+    dataInicio: '2026-08-01',
+    situacao: 'Em análise pelo Analista do ATC',
+    dataEnvio: '2026-08-12',
+    dataEmissao: '',
+    dataValidade: '',
+    observacoes: [
+      {
+        id: 'obs-005',
+        texto: 'Solicitação de LCM Especial enviada para análise técnica prévia do ATC.',
+        dataHora: '2026-08-12T09:45:00',
+        autor: 'Regulatório Shineray'
+      },
+      {
+        id: 'obs-006',
+        texto: 'Analista do ATC solicitou esclarecimento sobre o sistema de escapamento e catalisador.',
+        dataHora: '2026-09-02T15:10:00',
+        autor: 'Engenharia de Homologação'
+      }
+    ],
+    criadoEm: '2026-08-01T10:00:00',
+    atualizadoEm: '2026-09-02T15:10:00'
+  },
+  {
+    id: 'proc-004',
+    tipo: 'Dispensa',
+    numeroSolicitacao: 'SD 2026.0048',
+    procedencia: 'Nacional',
+    mmv: 'SHINERAY/PROTÓTIPO URBAN EV 4000W',
+    numeroLicenca: '',
+    quantidade: '3 unidades experimentais para validação dinâmica em pista',
+    tipoVeiculo: 'Protótipo',
+    dataInicio: '2026-08-20',
+    situacao: 'A pagar',
+    dataEnvio: '2026-08-28',
+    dataEmissao: '',
+    dataValidade: '',
+    observacoes: [
+      {
+        id: 'obs-007',
+        texto: 'Guia de Recolhimento da União (GRU) gerada pelo sistema Infoserv. Encaminhada ao financeiro.',
+        dataHora: '2026-09-18T11:00:00',
+        autor: 'Coordenação Administrativa'
+      }
+    ],
+    criadoEm: '2026-08-20T14:00:00',
+    atualizadoEm: '2026-09-18T11:00:00'
+  },
+  {
+    id: 'proc-005',
+    tipo: 'Extensão',
+    numeroSolicitacao: 'SL 2026.0422',
+    procedencia: 'Importado',
+    mmv: 'I/SHINERAY/SHE S 3000W PLUS',
+    mmvOriginal: 'I/SHINERAY/SHE S 3000W',
+    numeroLicenca: 'LCM-0519/2026-EXT-IBAMA',
+    tipoVeiculo: 'Motocicleta',
+    dataInicio: '2026-03-10',
+    situacao: 'Licença/Certidão emitida',
+    dataEnvio: '2026-03-18',
+    dataEmissao: '2026-04-20',
+    dataValidade: '2027-04-20', // Valid until 2027 -> not expiring in 61 days
+    observacoes: [
+      {
+        id: 'obs-008',
+        texto: 'Extensão de homologação autorizada com aproveitamento do relatório de ruído do modelo base.',
+        dataHora: '2026-04-20T17:05:00',
+        autor: 'Engenharia de Homologação Shineray'
+      }
+    ],
+    criadoEm: '2026-03-10T11:30:00',
+    atualizadoEm: '2026-04-20T17:05:00'
+  },
+  {
+    id: 'proc-006',
+    tipo: 'LCVM Especial',
+    numeroSolicitacao: 'SL 2026.0489',
+    procedencia: 'Nacional',
+    mmv: 'SHINERAY/E-CARGO UTILITY 1000',
+    numeroLicenca: '',
+    quantidade: 'Limitada (1 a 2)',
+    tipoVeiculo: 'Veículo leve comercial',
+    dataInicio: '2026-09-01',
+    situacao: 'Encaminhada para o ibama',
+    dataEnvio: '2026-09-08',
+    dataEmissao: '',
+    dataValidade: '',
+    observacoes: [
+      {
+        id: 'obs-009',
+        texto: 'Processo transmitido e com status de encaminhado para o IBAMA em Brasília.',
+        dataHora: '2026-09-08T16:20:00',
+        autor: 'Analista de Regulatório'
+      }
+    ],
+    criadoEm: '2026-09-01T09:15:00',
+    atualizadoEm: '2026-09-08T16:20:00'
+  },
+  {
+    id: 'proc-007',
+    tipo: 'LCM',
+    numeroSolicitacao: 'SL 2026.0511',
+    procedencia: 'Nacional',
+    mmv: 'SHINERAY/PHOENIX 50 EFI 2027',
+    numeroLicenca: '',
+    quantidade: 'Restrita (3 a 50)',
+    tipoVeiculo: 'Motocicleta',
+    dataInicio: '2026-09-14',
+    situacao: 'Em edição',
+    dataEnvio: '',
+    dataEmissao: '',
+    dataValidade: '',
+    observacoes: [
+      {
+        id: 'obs-010',
+        texto: 'Cadastrando dados técnicos preliminares no Infoserv. Coletando laudo de emissões PROMOT M5.',
+        dataHora: '2026-09-14T10:00:00',
+        autor: 'Engenharia de Homologação'
+      }
+    ],
+    criadoEm: '2026-09-14T10:00:00',
+    atualizadoEm: '2026-09-14T10:00:00'
+  },
+  {
+    id: 'proc-008',
+    tipo: 'LCVM',
+    numeroSolicitacao: 'SL 2026.0188',
+    procedencia: 'Importado',
+    mmv: 'I/SHINERAY/TITAN EV CARGO 300',
+    numeroLicenca: 'LCVM-0988/2025-IBAMA',
+    quantidade: 'Ilimitada (100+)',
+    tipoVeiculo: 'Veículo leve comercial',
+    dataInicio: '2025-10-01',
+    situacao: 'Licença/Certidão emitida',
+    dataEnvio: '2025-10-15',
+    dataEmissao: '2025-11-20',
+    dataValidade: '2026-11-05', // ~43 days from Sept 23, 2026 -> PARA REVALIDAÇÃO
+    observacoes: [
+      {
+        id: 'obs-011',
+        texto: 'Licença obtida com validade de 12 meses. Entrando no prazo de revalidação.',
+        dataHora: '2025-11-20T14:00:00',
+        autor: 'Gerência de Qualidade'
+      },
+      {
+        id: 'obs-012',
+        texto: 'Notificação do sistema: faltam menos de 61 dias para o término da vigência.',
+        dataHora: '2026-09-20T08:30:00',
+        autor: 'Sistema Infoserv Alertas'
+      }
+    ],
+    criadoEm: '2025-10-01T08:00:00',
+    atualizadoEm: '2026-09-20T08:30:00'
+  }
+];
