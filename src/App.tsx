@@ -226,7 +226,7 @@ export default function App() {
   ).length;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0B0F17] flex flex-col font-sans text-neutral-900 dark:text-neutral-100 selection:bg-[#E30613]/10 selection:text-[#E30613] transition-colors">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0f172a] flex flex-col font-sans text-neutral-900 dark:text-neutral-100 selection:bg-[#E30613]/10 selection:text-[#E30613] transition-colors">
       {/* Top Bar Contract (Wordmark - Links - Primary Action) */}
       <Navbar
         currentTab={currentTab}

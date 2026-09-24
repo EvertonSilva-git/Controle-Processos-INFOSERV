@@ -14,14 +14,10 @@ import {
   obterOpcoesQuantidade,
 } from '../utils/processCalculations';
 import { 
-  PlusCircle, 
   Check, 
   ArrowLeft, 
-  Info, 
   FileCheck, 
-  AlertCircle,
-  Calendar,
-  Sparkles
+  AlertCircle 
 } from 'lucide-react';
 
 interface ProcessFormScreenProps {
@@ -42,7 +38,6 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
   const prefixoSolicitacao = obterPrefixoSolicitacao(tipo);
   const [numeroSolicitacaoInput, setNumeroSolicitacaoInput] = useState<string>(() => {
     if (initialData?.numeroSolicitacao) {
-      // remove SL or SD prefix if present to keep number clean
       return initialData.numeroSolicitacao.replace(/^(SL|SD)\s*/i, '');
     }
     return '';
@@ -128,8 +123,6 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
       if (!config.options.includes(quantidade)) {
         setQuantidade(config.options[0]);
       }
-    } else if (config.isInput) {
-      // Keep or reset
     }
   }, [tipo, quantidade]);
 
@@ -199,42 +192,42 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
     setSucesso(true);
     setTimeout(() => {
       onSave(novoProcesso);
-    }, 600);
+    }, 500);
   };
 
   return (
     <div className="max-w-4xl mx-auto pb-12">
       {/* Header bar */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-5">
         <div>
           <button
             type="button"
             onClick={onCancel}
-            className="flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors mb-2"
+            className="flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors mb-2"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Voltar ao painel</span>
           </button>
-          <h1 className="text-2xl font-extrabold text-neutral-900 dark:text-white tracking-tight flex items-center gap-2">
-            <span>{initialData ? 'Editar Processo Infoserv' : 'Cadastrar Novo Processo'}</span>
-            <span className="text-xs font-mono font-normal text-[#E30613] bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 px-2 py-0.5 rounded">
-              IBAMA · PROCONVE / PROMOT
+          <h1 className="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-white tracking-tight flex items-center gap-2">
+            <span>{initialData ? 'Editar Processo' : 'Cadastrar Novo Processo'}</span>
+            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">
+              Infoserv · IBAMA
             </span>
           </h1>
-          <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-            Preencha os campos de conformidade técnica para homologação e emissão de licença ambiental.
+          <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
+            Preencha os campos para registro e controle de homologação veicular.
           </p>
         </div>
       </div>
 
       {sucesso && (
-        <div className="mb-6 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300 flex items-center gap-3 animate-in fade-in-50">
-          <div className="p-2 bg-emerald-500 text-white rounded-lg">
-            <Check className="w-5 h-5" />
+        <div className="mb-5 p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 flex items-center gap-2.5">
+          <div className="p-1.5 bg-emerald-600 text-white rounded-lg">
+            <Check className="w-4 h-4" />
           </div>
           <div>
-            <div className="font-bold text-sm">Processo salvo com sucesso!</div>
-            <div className="text-xs text-emerald-700 dark:text-emerald-400">
+            <div className="font-semibold text-xs sm:text-sm">Processo salvo com sucesso!</div>
+            <div className="text-[11px] text-emerald-700 dark:text-emerald-400">
               Os dados foram registrados no acervo de homologações da Shineray.
             </div>
           </div>
@@ -242,20 +235,19 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
       )}
 
       {/* Main Form */}
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Section 1: Identificação Básica */}
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 sm:p-6 shadow-sm space-y-5">
-          <div className="border-b border-neutral-100 dark:border-neutral-800 pb-3">
-            <h2 className="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#E30613]" />
-              1. Enquadramento e Identificação (Campos 1 a 5)
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Section 1: Enquadramento e Identificação */}
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 rounded-xl p-5 shadow-xs space-y-4">
+          <div className="border-b border-neutral-100 dark:border-neutral-800 pb-2.5">
+            <h2 className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
+              1. Enquadramento e Identificação
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Campo 1: Tipo */}
             <div className="space-y-1.5 sm:col-span-2">
-              <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 1. Tipo de Processo <span className="text-[#E30613]">*</span>
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
@@ -265,9 +257,9 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                       key={t}
                       type="button"
                       onClick={() => setTipo(t)}
-                      className={`py-2.5 px-3 rounded-lg text-xs font-bold transition-all text-center border ${
+                      className={`py-2 px-2.5 rounded-lg text-xs font-medium transition-colors text-center border ${
                         tipo === t
-                          ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 border-neutral-900 dark:border-white shadow-sm ring-2 ring-[#E30613]/20'
+                          ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 border-neutral-900 dark:border-white shadow-2xs'
                           : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700'
                       }`}
                     >
@@ -276,18 +268,18 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                   )
                 )}
               </div>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              <p className="text-[11px] text-neutral-400">
                 Determina as regras automáticas de prefixo (SL/SD), veículos permitidos e quantidade.
               </p>
             </div>
 
             {/* Campo 2: Número da Solicitação com regra SL/SD */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 2. Número da Solicitação <span className="text-[#E30613]">*</span>
               </label>
-              <div className="flex rounded-lg shadow-sm">
-                <span className="inline-flex items-center px-3.5 rounded-l-lg border border-r-0 border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-mono font-bold text-sm">
+              <div className="flex rounded-lg shadow-2xs">
+                <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-mono font-bold text-xs sm:text-sm">
                   {prefixoSolicitacao}
                 </span>
                 <input
@@ -295,23 +287,23 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                   value={numeroSolicitacaoInput}
                   onChange={(e) => setNumeroSolicitacaoInput(e.target.value)}
                   placeholder="Ex: 2026.0142"
-                  className={`flex-1 min-w-0 block w-full px-3 py-2.5 rounded-none rounded-r-lg border text-sm font-mono bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-[#E30613] focus:border-transparent ${
+                  className={`flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-lg border text-sm font-mono bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-500 ${
                     erros.numeroSolicitacao
-                      ? 'border-red-500 bg-red-50/30'
-                      : 'border-neutral-300 dark:border-neutral-700'
+                      ? 'border-rose-400 bg-rose-50/20'
+                      : 'border-neutral-200 dark:border-neutral-700'
                   }`}
                 />
               </div>
-              <div className="flex justify-between items-center text-[11px]">
-                <span className="text-neutral-500 dark:text-neutral-400">
-                  Regra: Dispensa utiliza prefixo <strong>SD</strong>; demais utilizam <strong>SL</strong>.
+              <div className="flex justify-between items-center text-[11px] text-neutral-400">
+                <span>
+                  Prefixo {prefixoSolicitacao} atribuído automaticamente
                 </span>
-                <span className="font-mono text-neutral-400 dark:text-neutral-500">
+                <span className="font-mono text-neutral-600 dark:text-neutral-400">
                   {prefixoSolicitacao} {numeroSolicitacaoInput || '____'}
                 </span>
               </div>
               {erros.numeroSolicitacao && (
-                <p className="text-[11px] text-red-600 dark:text-red-400 flex items-center gap-1 font-semibold">
+                <p className="text-[11px] text-rose-600 dark:text-rose-400 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> {erros.numeroSolicitacao}
                 </p>
               )}
@@ -319,7 +311,7 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
 
             {/* Campo 3: Procedência */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 3. Procedência <span className="text-[#E30613]">*</span>
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -328,9 +320,9 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                     key={proc}
                     type="button"
                     onClick={() => setProcedencia(proc)}
-                    className={`py-2.5 px-3 rounded-lg text-xs font-bold transition-all border text-center ${
+                    className={`py-2 px-3 rounded-lg text-xs font-medium transition-colors border text-center ${
                       procedencia === proc
-                        ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 border-neutral-900 dark:border-white shadow-sm'
+                        ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 border-neutral-900 dark:border-white shadow-2xs'
                         : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700'
                     }`}
                   >
@@ -338,18 +330,18 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                   </button>
                 ))}
               </div>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                Nacional prefixa MMV com <strong>SHINERAY/</strong>; Importado com <strong>I/SHINERAY/</strong>.
+              <p className="text-[11px] text-neutral-400">
+                Define o prefixo do MMV ({procedencia === 'Nacional' ? 'SHINERAY/' : 'I/SHINERAY/'}).
               </p>
             </div>
 
             {/* Campo 4: MMV */}
             <div className="space-y-1.5 sm:col-span-2">
-              <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 4. MMV (Marca / Modelo / Versão) <span className="text-[#E30613]">*</span>
               </label>
-              <div className="flex rounded-lg shadow-sm">
-                <span className="inline-flex items-center px-3.5 rounded-l-lg border border-r-0 border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-mono font-bold text-xs sm:text-sm whitespace-nowrap">
+              <div className="flex rounded-lg shadow-2xs">
+                <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-mono font-bold text-xs sm:text-sm whitespace-nowrap">
                   {prefixoMMV}
                 </span>
                 <input
@@ -357,21 +349,19 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                   value={modeloInput}
                   onChange={(e) => setModeloInput(e.target.value.toUpperCase())}
                   placeholder="Ex: WORKER 125, STORM 200 PRO, SHE S 3000W"
-                  className={`flex-1 min-w-0 block w-full px-3 py-2.5 rounded-none rounded-r-lg border text-sm font-semibold tracking-wide uppercase bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-[#E30613] focus:border-transparent ${
-                    erros.mmv ? 'border-red-500 bg-red-50/30' : 'border-neutral-300 dark:border-neutral-700'
+                  className={`flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-lg border text-sm font-medium tracking-wide uppercase bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-500 ${
+                    erros.mmv ? 'border-rose-400 bg-rose-50/20' : 'border-neutral-200 dark:border-neutral-700'
                   }`}
                 />
               </div>
-              <div className="flex justify-between items-center text-[11px]">
-                <span className="text-neutral-500 dark:text-neutral-400">
-                  Exibição final homologada no Infoserv:
-                </span>
-                <span className="font-mono font-bold text-neutral-800 dark:text-neutral-200">
+              <div className="flex justify-between items-center text-[11px] text-neutral-400">
+                <span>Exibição no Infoserv:</span>
+                <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300">
                   {prefixoMMV}{modeloInput || '_____'}
                 </span>
               </div>
               {erros.mmv && (
-                <p className="text-[11px] text-red-600 dark:text-red-400 flex items-center gap-1 font-semibold">
+                <p className="text-[11px] text-rose-600 dark:text-rose-400 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> {erros.mmv}
                 </p>
               )}
@@ -379,24 +369,24 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
 
             {/* Campo 5: MMV Original (Apenas se for Extensão) */}
             {tipo === 'Extensão' && (
-              <div className="space-y-1.5 sm:col-span-2 p-4 bg-amber-50/60 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl">
-                <label className="block text-xs font-bold text-amber-950 dark:text-amber-300 uppercase tracking-wide">
-                  5. MMV Original (Obrigatório para Extensão) <span className="text-[#E30613]">*</span>
+              <div className="space-y-1.5 sm:col-span-2 p-3.5 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 rounded-lg">
+                <label className="block text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                  5. MMV Original (Modelo de Origem) <span className="text-[#E30613]">*</span>
                 </label>
                 <input
                   type="text"
                   value={mmvOriginal}
                   onChange={(e) => setMmvOriginal(e.target.value.toUpperCase())}
-                  placeholder="Ex: I/SHINERAY/SHE S 3000W"
-                  className={`w-full px-3 py-2.5 rounded-lg border text-sm font-semibold bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
-                    erros.mmvOriginal ? 'border-red-500' : 'border-amber-300 dark:border-amber-700'
+                  placeholder="Ex: SHINERAY/WORKER 125"
+                  className={`w-full px-3 py-2 rounded-lg border text-sm uppercase bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
+                    erros.mmvOriginal ? 'border-rose-400' : 'border-neutral-200 dark:border-neutral-700'
                   }`}
                 />
-                <p className="text-[11px] text-amber-800 dark:text-amber-400">
-                  Indique a Marca/Modelo/Versão base cujos ensaios e relatórios de emissões foram aproveitados.
+                <p className="text-[11px] text-neutral-500">
+                  Obrigatório para o tipo Extensão: MMV matriz da homologação anterior.
                 </p>
                 {erros.mmvOriginal && (
-                  <p className="text-[11px] text-red-600 dark:text-red-400 flex items-center gap-1 font-semibold">
+                  <p className="text-[11px] text-rose-600 dark:text-rose-400 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" /> {erros.mmvOriginal}
                   </p>
                 )}
@@ -405,53 +395,46 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
           </div>
         </div>
 
-        {/* Section 2: Características Técnicas e Quantidade */}
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 sm:p-6 shadow-sm space-y-5">
-          <div className="border-b border-neutral-100 dark:border-neutral-800 pb-3">
-            <h2 className="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#E30613]" />
-              2. Dados do Veículo e Licenciamento (Campos 6 a 8)
+        {/* Section 2: Dados Técnicos e Quantidade */}
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 rounded-xl p-5 shadow-xs space-y-4">
+          <div className="border-b border-neutral-100 dark:border-neutral-800 pb-2.5">
+            <h2 className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
+              2. Dados Técnicos e Quantidade
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {/* Campo 6: Número da Licença (Pode ficar em branco inicialmente) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Campo 6: Número da Licença */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
-                  6. Número da Licença
-                </label>
-                <span className="text-[10px] text-neutral-400 font-medium">
-                  Opcional (Pode preencher após emissão)
-                </span>
-              </div>
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                6. Número da Licença Infoserv (Opcional)
+              </label>
               <input
                 type="text"
                 value={numeroLicenca}
-                onChange={(e) => setNumeroLicenca(e.target.value)}
-                placeholder="Ex: LCM-0842/2026-IBAMA (Deixe em branco se pendente)"
-                className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:ring-2 focus:ring-[#E30613] focus:border-transparent placeholder:text-neutral-400"
+                onChange={(e) => setNumeroLicenca(e.target.value.toUpperCase())}
+                placeholder="Ex: 2026/00142/IBAMA"
+                className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-neutral-400"
               />
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                Pode ficar em branco inicialmente, sendo alterado após a emissão pelo Infoserv.
+              <p className="text-[11px] text-neutral-400">
+                Preencha quando a licença for expedida pelo órgão.
               </p>
             </div>
 
-            {/* Campo 7: Quantidade (Condicionado pelo Tipo) */}
+            {/* Campo 7: Quantidade */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
-                7. Quantidade {qtdConfig.isOmitted && <span className="text-neutral-400 font-normal">(Não aplicável para Extensão)</span>}
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                7. Quantidade de Veículos
               </label>
-
               {qtdConfig.isOmitted ? (
-                <div className="py-2.5 px-3 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-xs text-neutral-500 dark:text-neutral-400 italic">
-                  Extensão não requer quantidade definida.
+                <div className="px-3 py-2 rounded-lg border border-dashed border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-neutral-400 text-xs">
+                  Não aplicável para {tipo} (campo omitido)
                 </div>
               ) : qtdConfig.isSelect ? (
                 <select
                   value={quantidade}
                   onChange={(e) => setQuantidade(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white font-medium focus:ring-2 focus:ring-[#E30613] focus:border-transparent"
+                  className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400"
                 >
                   {qtdConfig.options.map((opt) => (
                     <option key={opt} value={opt}>
@@ -464,82 +447,86 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                   type="text"
                   value={quantidade}
                   onChange={(e) => setQuantidade(e.target.value)}
-                  placeholder="Digite a quantidade desejada (Ex: 3 unidades para testes)"
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-[#E30613] focus:border-transparent"
+                  placeholder="Informe a quantidade de veículos"
+                  className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400"
                 />
               )}
-
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                Regra: LCVM = Restrita/Ilimitada; LCM = Restrita (3 a 50); Especial = Limitada (1 a 2); Dispensa = digitação livre.
+              <p className="text-[11px] text-neutral-400">
+                {qtdConfig.isOmitted
+                  ? 'Campo desnecessário para este tipo de homologação.'
+                  : 'Regra de quantidade baseada no enquadramento.'}
               </p>
             </div>
 
-            {/* Campo 8: Tipo de Veículo (Condicionado pelo Tipo) */}
+            {/* Campo 8: Tipo de Veículo */}
             <div className="space-y-1.5 sm:col-span-2">
-              <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 8. Tipo de Veículo <span className="text-[#E30613]">*</span>
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                {tiposPermitidos.map((tv) => (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {tiposPermitidos.map((v) => (
                   <button
-                    key={tv}
+                    key={v}
                     type="button"
-                    onClick={() => setTipoVeiculo(tv)}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all border text-left flex items-center justify-between ${
-                      tipoVeiculo === tv
-                        ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 border-neutral-900 dark:border-white shadow-sm'
+                    onClick={() => setTipoVeiculo(v)}
+                    className={`py-2 px-3 rounded-lg text-xs font-medium transition-colors border text-center ${
+                      tipoVeiculo === v
+                        ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 border-neutral-900 dark:border-white shadow-2xs'
                         : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700'
                     }`}
                   >
-                    <span>{tv}</span>
-                    {tipoVeiculo === tv && <Check className="w-3.5 h-3.5 text-[#E30613]" />}
+                    {v}
                   </button>
                 ))}
               </div>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                Opções filtradas dinamicamente conforme o tipo selecionado ({tipo}).
+              <p className="text-[11px] text-neutral-400">
+                Filtrado conforme o tipo selecionado ({tipo}).
               </p>
             </div>
           </div>
         </div>
 
-        {/* Section 3: Datas e Situação do Processo */}
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 sm:p-6 shadow-sm space-y-5">
-          <div className="border-b border-neutral-100 dark:border-neutral-800 pb-3">
-            <h2 className="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#E30613]" />
-              3. Tramitação, Prazos e Validade (Campos 9 a 13)
+        {/* Section 3: Cronograma e Situação */}
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 rounded-xl p-5 shadow-xs space-y-4">
+          <div className="border-b border-neutral-100 dark:border-neutral-800 pb-2.5">
+            <h2 className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
+              3. Cronograma e Situação
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {/* Campo 9: Data do Início */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Campo 9: Data de Início */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
-                9. Data do Início <span className="text-[#E30613]">*</span>
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                9. Data de Início do Processo <span className="text-[#E30613]">*</span>
               </label>
               <input
                 type="date"
                 value={dataInicio}
                 onChange={(e) => setDataInicio(e.target.value)}
-                className={`w-full px-3 py-2.5 rounded-lg border text-sm font-mono bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-[#E30613] focus:border-transparent ${
-                  erros.dataInicio ? 'border-red-500' : 'border-neutral-300 dark:border-neutral-700'
+                className={`w-full px-3 py-2 rounded-lg border text-sm font-mono bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
+                  erros.dataInicio ? 'border-rose-400' : 'border-neutral-200 dark:border-neutral-700'
                 }`}
               />
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                Data em que o processo no Infoserv começou a ser criado.
+              <p className="text-[11px] text-neutral-400">
+                Data do início da elaboração técnica interna.
               </p>
+              {erros.dataInicio && (
+                <p className="text-[11px] text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {erros.dataInicio}
+                </p>
+              )}
             </div>
 
             {/* Campo 10: Situação */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
-                10. Situação <span className="text-[#E30613]">*</span>
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                10. Situação Atual <span className="text-[#E30613]">*</span>
               </label>
               <select
                 value={situacao}
                 onChange={(e) => setSituacao(e.target.value as SituacaoProcesso)}
-                className="w-full px-3 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm font-semibold bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-[#E30613] focus:border-transparent"
+                className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400"
               >
                 <option value="Em edição">Em edição</option>
                 <option value="Encaminhada para o ibama">Encaminhada para o ibama</option>
@@ -547,58 +534,58 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                 <option value="A pagar">A pagar</option>
                 <option value="Licença/Certidão emitida">Licença/Certidão emitida</option>
               </select>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              <p className="text-[11px] text-neutral-400">
                 Status corrente no fluxo regulatório do IBAMA.
               </p>
             </div>
 
             {/* Campo 11: Data do Envio */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
-                11. Data do Envio
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                11. Data do Envio ao Órgão
               </label>
               <input
                 type="date"
                 value={dataEnvio}
                 onChange={(e) => setDataEnvio(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:ring-2 focus:ring-[#E30613] focus:border-transparent"
+                className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-neutral-400"
               />
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              <p className="text-[11px] text-neutral-400">
                 Data do envio da solicitação ao IBAMA.
               </p>
             </div>
 
             {/* Campo 12: Data de Emissão */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
-                12. Data de Emissão
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                12. Data de Emissão da Licença
               </label>
               <input
                 type="date"
                 value={dataEmissao}
                 onChange={(e) => setDataEmissao(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:ring-2 focus:ring-[#E30613] focus:border-transparent"
+                className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-neutral-400"
               />
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              <p className="text-[11px] text-neutral-400">
                 Data em que a certidão/licença foi expedida.
               </p>
             </div>
 
             {/* Campo 13: Data de Validade da Licença */}
             <div className="space-y-1.5 sm:col-span-2">
-              <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide flex items-center justify-between">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
                 <span>13. Data de Validade da Licença</span>
-                <span className="text-[10px] text-neutral-400 font-normal">
-                  Gera alerta quando faltar ≤ 61 dias
+                <span className="text-[11px] text-neutral-400 font-normal">
+                  Alerta gerado com ≤ 61 dias restantes
                 </span>
               </label>
               <input
                 type="date"
                 value={dataValidade}
                 onChange={(e) => setDataValidade(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:ring-2 focus:ring-[#E30613] focus:border-transparent"
+                className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-neutral-400"
               />
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              <p className="text-[11px] text-neutral-400">
                 Alimenta o cálculo de "Dias restantes" e inclusão no painel "Para revalidação".
               </p>
             </div>
@@ -607,39 +594,38 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
 
         {/* Section 4: Registro de Observação Inicial */}
         {!initialData && (
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 sm:p-6 shadow-sm space-y-3">
-            <h2 className="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-neutral-400" />
-              Observação Inicial de Cadastro (Opcional)
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 rounded-xl p-5 shadow-xs space-y-3">
+            <h2 className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
+              Observação Inicial (Opcional)
             </h2>
             <textarea
               rows={3}
               value={notaInicial}
               onChange={(e) => setNotaInicial(e.target.value)}
               placeholder="Adicione um parecer preliminar, número de protocolo interno ou informação sobre laudos..."
-              className="w-full px-3 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-[#E30613] focus:border-transparent placeholder:text-neutral-400"
+              className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 placeholder:text-neutral-400"
             />
-            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+            <p className="text-[11px] text-neutral-400">
               Esta anotação ficará registrada no Histórico de Observações com carimbo de data e hora.
             </p>
           </div>
         )}
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-3 pt-4">
+        <div className="flex items-center justify-end gap-2.5 pt-2">
           <button
             type="button"
             onClick={onCancel}
-            className="px-5 py-2.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+            className="px-4 py-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/70 dark:bg-neutral-800 dark:hover:bg-neutral-700 rounded-lg transition-colors"
           >
             Cancelar
           </button>
           <button
             type="submit"
-            className="px-6 py-2.5 text-xs font-bold text-white bg-[#E30613] hover:bg-[#C40510] active:scale-[0.99] rounded-lg transition-all shadow-sm flex items-center gap-2"
+            className="px-5 py-2 text-xs font-medium text-white bg-[#E30613] hover:bg-[#c70510] rounded-lg transition-colors shadow-2xs flex items-center gap-1.5"
           >
-            <FileCheck className="w-4 h-4" />
-            <span>{initialData ? 'Atualizar Processo' : 'Salvar Processo no Infoserv'}</span>
+            <FileCheck className="w-3.5 h-3.5" />
+            <span>{initialData ? 'Atualizar Processo' : 'Salvar Processo'}</span>
           </button>
         </div>
       </form>
