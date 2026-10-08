@@ -1,5 +1,5 @@
 import React from 'react';
-import { Processo } from '../types/process';
+import { Processo, CnpjOption } from '../types/process';
 import { ProcessFormScreen } from './ProcessFormScreen';
 import { X } from 'lucide-react';
 
@@ -8,6 +8,9 @@ interface EditProcessModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (processo: Processo) => void;
+  cnpjs?: CnpjOption[];
+  onAddCnpj?: (newCnpj: CnpjOption) => void;
+  currentUser?: string | null;
 }
 
 export const EditProcessModal: React.FC<EditProcessModalProps> = ({
@@ -15,6 +18,9 @@ export const EditProcessModal: React.FC<EditProcessModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  cnpjs,
+  onAddCnpj,
+  currentUser,
 }) => {
   if (!isOpen || !processo) return null;
 
@@ -40,6 +46,9 @@ export const EditProcessModal: React.FC<EditProcessModalProps> = ({
         <div className="p-4 sm:p-6 max-h-[82vh] overflow-y-auto">
           <ProcessFormScreen
             initialData={processo}
+            cnpjs={cnpjs}
+            onAddCnpj={onAddCnpj}
+            currentUser={currentUser}
             onSave={(updated) => {
               onSave(updated);
               onClose();

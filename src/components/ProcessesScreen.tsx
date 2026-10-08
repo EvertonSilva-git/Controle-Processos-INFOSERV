@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Processo, ProcessoTipo, ProcessosSubTab } from '../types/process';
+import { Processo, ProcessoTipo, ProcessosSubTab, CnpjOption, formatarCNPJ } from '../types/process';
 import {
   calcularDiasRestantes,
   calcularDiasSolicitacaoAteEmissao,
@@ -8,6 +8,7 @@ import {
 } from '../utils/processCalculations';
 import { RevalidationAlertBanner } from './RevalidationAlertBanner';
 import { ClassificationTypesBar } from './ClassificationTypesBar';
+import { CnpjFilterCards } from './CnpjFilterCards';
 import {
   Search,
   MessageSquare,
@@ -24,7 +25,10 @@ import {
   FileText,
   AlertCircle,
   Plus,
-  X
+  X,
+  Building2,
+  GitBranch,
+  ChevronDown,
 } from 'lucide-react';
 
 interface ProcessesScreenProps {
@@ -37,6 +41,12 @@ interface ProcessesScreenProps {
   onEditProcesso: (processo: Processo) => void;
   onDeleteProcesso: (processoId: string) => void;
   onNavigateToCadastro: () => void;
+  onCreateExtensao?: (processoOriginal: Processo) => void;
+  cnpjs?: CnpjOption[];
+  onAddCnpj?: (newCnpj: CnpjOption) => void;
+  onDeleteCnpj?: (rawCnpj: string) => void;
+  searchTerm?: string;
+  onSearchTermChange?: (term: string) => void;
 }
 
 export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
@@ -49,14 +59,71 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
   onEditProcesso,
   onDeleteProcesso,
   onNavigateToCadastro,
+  onCreateExtensao,
+  cnpjs,
+  onAddCnpj,
+  onDeleteCnpj,
+  searchTerm: externalSearchTerm,
+  onSearchTermChange,
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [internalSearchTerm, setInternalSearchTerm] = useState('');
+  const searchTerm = externalSearchTerm !== undefined ? externalSearchTerm : internalSearchTerm;
+  const setSearchTerm = onSearchTermChange || setInternalSearchTerm;
   const [procedenciaFiltro, setProcedenciaFiltro] = useState<string>('todos');
+  const [quantidadeFiltro, setQuantidadeFiltro] = useState<string>('todos');
+  const [cnpjFiltro, setCnpjFiltro] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'recentes' | 'validade' | 'solicitacao'>('recentes');
+  const [expandedExtensoes, setExpandedExtensoes] = useState<Record<string, boolean>>({});
 
-  // Counts for tabs - clean and without overlap
+  const toggleExpandedExtensoes = (id: string) => {
+    setExpandedExtensoes((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Processos filtrados pelo CNPJ selecionado (para alimentar dinamicamente a barra de tipos)
+  const processosDoCnpj = useMemo(() => {
+    if (!cnpjFiltro) return processos;
+    const targetClean = cnpjFiltro.replace(/\D/g, '');
+    return processos.filter((p) => {
+      const pClean = (p.cnpj || '').replace(/\D/g, '');
+      return pClean === targetClean;
+    });
+  }, [processos, cnpjFiltro]);
+
+  const handleSelectCnpj = (novoCnpj: string | null) => {
+    setCnpjFiltro(novoCnpj);
+    if (novoCnpj && tipoFiltro && onTipoFiltroChange) {
+      const cleanTarget = novoCnpj.replace(/\D/g, '');
+      const temTipoNoCnpj = processos.some((p) => {
+        const pClean = (p.cnpj || '').replace(/\D/g, '');
+        return pClean === cleanTarget && p.tipo === tipoFiltro;
+      });
+      if (!temTipoNoCnpj) {
+        onTipoFiltroChange(null);
+      }
+    }
+  };
+
+  // Unique quantities present in processes
+  const uniqueQuantidades = useMemo(() => {
+    const set = new Set<string>();
+    processos.forEach((p) => {
+      if (p.quantidade && p.quantidade.trim()) {
+        set.add(p.quantidade.trim());
+      }
+    });
+    // Add default options if not present
+    ['Restrita (3 a 100)', 'Ilimitada (100+)', 'Restrita (3 a 50)', 'Ilimitada (50+)', '1', '2', 'Limitada (1 a 2)'].forEach((q) => set.add(q));
+    return Array.from(set).sort();
+  }, [processos]);
+
+  // Counts for tabs
   const countEmEdicao = useMemo(
     () => processos.filter((p) => p.situacao === 'Em edição').length,
+    [processos]
+  );
+
+  const countParaCorrecao = useMemo(
+    () => processos.filter((p) => p.situacao === 'Para correção').length,
     [processos]
   );
 
@@ -93,6 +160,8 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
     switch (currentSubTab) {
       case 'em_edicao':
         return processos.filter((p) => p.situacao === 'Em edição');
+      case 'para_correcao':
+        return processos.filter((p) => p.situacao === 'Para correção');
       case 'em_tramitacao':
         return processos.filter(
           (p) =>
@@ -114,7 +183,7 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
     }
   }, [processos, currentSubTab]);
 
-  // Apply search, type, and provenance filters
+  // Apply search, type, provenance, quantity and cnpj filters
   const finalFiltered = useMemo(() => {
     return subTabFiltered.filter((p) => {
       // Text search
@@ -125,9 +194,13 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
         const matchesLic = p.numeroLicenca ? p.numeroLicenca.toLowerCase().includes(query) : false;
         const matchesOrig = p.mmvOriginal ? p.mmvOriginal.toLowerCase().includes(query) : false;
         const matchesVeic = p.tipoVeiculo.toLowerCase().includes(query);
+        const matchesCnpj = p.cnpj
+          ? p.cnpj.toLowerCase().includes(query) || formatarCNPJ(p.cnpj).toLowerCase().includes(query)
+          : false;
+        const matchesOrgao = p.orgaoCertificador ? p.orgaoCertificador.toLowerCase().includes(query) : false;
         const matchesObs = p.observacoes.some((obs) => obs.texto.toLowerCase().includes(query));
 
-        if (!matchesSol && !matchesMMV && !matchesLic && !matchesOrig && !matchesVeic && !matchesObs) {
+        if (!matchesSol && !matchesMMV && !matchesLic && !matchesOrig && !matchesVeic && !matchesCnpj && !matchesOrgao && !matchesObs) {
           return false;
         }
       }
@@ -142,9 +215,25 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
         return false;
       }
 
+      // Quantidade filter
+      if (quantidadeFiltro !== 'todos') {
+        if (!p.quantidade || p.quantidade.trim() !== quantidadeFiltro.trim()) {
+          return false;
+        }
+      }
+
+      // CNPJ filter
+      if (cnpjFiltro) {
+        const targetClean = cnpjFiltro.replace(/\D/g, '');
+        const pClean = (p.cnpj || '').replace(/\D/g, '');
+        if (pClean !== targetClean) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [subTabFiltered, searchTerm, tipoFiltro, procedenciaFiltro]);
+  }, [subTabFiltered, searchTerm, tipoFiltro, procedenciaFiltro, quantidadeFiltro, cnpjFiltro]);
 
   // Sorting
   const sortedProcessos = useMemo(() => {
@@ -170,6 +259,14 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
       description: 'Em elaboração interna',
       count: countEmEdicao,
       icon: Clock,
+    },
+    {
+      id: 'para_correcao' as ProcessosSubTab,
+      label: 'Para Correção',
+      description: 'Ajuste solicitado pelo órgão',
+      count: countParaCorrecao,
+      icon: AlertCircle,
+      isCorrecao: true,
     },
     {
       id: 'em_tramitacao' as ProcessosSubTab,
@@ -212,6 +309,8 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
         return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-200/80 dark:border-indigo-800/40';
       case 'A pagar':
         return 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200/80 dark:border-amber-800/40';
+      case 'Para correção':
+        return 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-300 dark:border-rose-800 font-semibold';
       case 'Em edição':
       default:
         return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700';
@@ -231,29 +330,50 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
 
       {/* Sub-screens Navigation Bar */}
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 rounded-xl p-1.5 shadow-xs">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5">
           {subTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = currentSubTab === tab.id;
+            const isRevalidacaoUrgent = tab.id === 'para_revalidacao' && tab.count > 0;
 
             return (
               <button
                 key={tab.id}
                 onClick={() => onSubTabChange(tab.id)}
-                className={`p-3 rounded-lg text-left transition-colors relative flex flex-col justify-between ${
-                  isActive
+                className={`p-3 rounded-lg text-left relative flex flex-col justify-between transition-all ${
+                  isRevalidacaoUrgent
+                    ? isActive
+                      ? 'revalidacao-pulse-amber ring-2 ring-amber-600 dark:ring-amber-400 text-amber-950 font-bold shadow-md'
+                      : 'revalidacao-pulse-amber border border-amber-400/90 text-amber-950 dark:text-amber-100 shadow-2xs hover:brightness-105'
+                    : isActive
                     ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-950 shadow-2xs'
                     : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800/80'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-1.5">
-                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#E30613]' : 'text-neutral-400'}`} />
-                    <span className="text-xs font-semibold truncate">{tab.label}</span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Icon
+                      className={`w-3.5 h-3.5 shrink-0 ${
+                        isRevalidacaoUrgent
+                          ? 'text-amber-950 dark:text-amber-200'
+                          : isActive
+                          ? 'text-[#E30613]'
+                          : 'text-neutral-400'
+                      }`}
+                    />
+                    <span
+                      className={`text-xs font-semibold truncate ${
+                        isRevalidacaoUrgent ? 'text-amber-950 dark:text-amber-100 font-bold' : ''
+                      }`}
+                    >
+                      {tab.label}
+                    </span>
                   </div>
                   <span
-                    className={`font-mono text-xs font-semibold tabular-nums px-1.5 py-0.2 rounded ${
-                      isActive
+                    className={`font-mono text-xs font-semibold tabular-nums px-1.5 py-0.2 rounded shrink-0 ${
+                      isRevalidacaoUrgent
+                        ? 'bg-amber-300/90 text-amber-950 dark:bg-amber-900/90 dark:text-amber-100 font-bold shadow-2xs'
+                        : isActive
                         ? 'bg-neutral-800 text-neutral-100 dark:bg-neutral-200 dark:text-neutral-900'
                         : tab.urgent
                         ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
@@ -265,7 +385,11 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                 </div>
                 <div
                   className={`text-[10px] truncate ${
-                    isActive ? 'text-neutral-300 dark:text-neutral-600' : 'text-neutral-400'
+                    isRevalidacaoUrgent
+                      ? 'text-amber-900 dark:text-amber-200 font-medium'
+                      : isActive
+                      ? 'text-neutral-300 dark:text-neutral-600'
+                      : 'text-neutral-400'
                   }`}
                 >
                   {tab.description}
@@ -276,10 +400,21 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
         </div>
       </div>
 
-      {/* Classificação por Tipo de Homologação (LCVM, LCM, Especial, Dispensa, Extensão) */}
-      <ClassificationTypesBar
+      {/* Cartões Filtros do CNPJ (Posicionados acima dos tipos de homologação) */}
+      <CnpjFilterCards
         processos={processos}
+        selectedCnpj={cnpjFiltro}
+        onSelectCnpj={handleSelectCnpj}
+        cnpjs={cnpjs}
+        onAddCnpj={onAddCnpj}
+        onDeleteCnpj={onDeleteCnpj}
+      />
+
+      {/* Classificação por Tipo de Homologação (LCVM, LCM, Especial, Dispensa, Extensão) - Atualiza automaticamente com base no CNPJ */}
+      <ClassificationTypesBar
+        processos={processosDoCnpj}
         selectedTipo={tipoFiltro}
+        selectedCnpj={cnpjFiltro}
         onSelectTipo={(tipo) => onTipoFiltroChange && onTipoFiltroChange(tipo)}
         onEditProcesso={onEditProcesso}
         onOpenObservations={onOpenObservations}
@@ -288,28 +423,28 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
 
       {/* Filter and Search Bar */}
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 rounded-xl p-3.5 shadow-xs space-y-3">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
-          {/* Search box */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* Search box - ampliada e confortável */}
           <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-neutral-400" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar por número (SL/SD), MMV, tipo, veículo, licença..."
-              className="w-full pl-9 pr-16 py-2 text-xs sm:text-sm border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-500 placeholder:text-neutral-400"
+              className="w-full pl-10 pr-16 py-2.5 text-sm sm:text-base border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E30613]/30 dark:focus:ring-[#E30613]/40 placeholder:text-neutral-400 transition-all shadow-2xs"
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 bg-neutral-200/50 dark:bg-neutral-700 px-2 py-1 rounded-md transition-colors"
               >
                 Limpar
               </button>
             )}
           </div>
 
-          {/* Quick Filters */}
+          {/* Quick Filters - ampliados e legíveis */}
           <div className="flex flex-wrap items-center gap-2">
             {/* Filter by Tipo */}
             <select
@@ -317,7 +452,7 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
               onChange={(e) =>
                 onTipoFiltroChange && onTipoFiltroChange(e.target.value ? (e.target.value as ProcessoTipo) : null)
               }
-              className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-neutral-400"
+              className="px-3 py-2 text-xs sm:text-sm font-semibold rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-400 cursor-pointer shadow-2xs"
             >
               <option value="">Todos os Tipos</option>
               <option value="LCVM">LCVM</option>
@@ -332,11 +467,25 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
             <select
               value={procedenciaFiltro}
               onChange={(e) => setProcedenciaFiltro(e.target.value)}
-              className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-neutral-400"
+              className="px-3 py-2 text-xs sm:text-sm font-semibold rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-400 cursor-pointer shadow-2xs"
             >
               <option value="todos">Toda Procedência</option>
               <option value="Nacional">Nacional</option>
               <option value="Importado">Importado</option>
+            </select>
+
+            {/* Filter by Quantidade (Requisito: filtro de quantidade ao lado da pesquisa) */}
+            <select
+              value={quantidadeFiltro}
+              onChange={(e) => setQuantidadeFiltro(e.target.value)}
+              className="px-3 py-2 text-xs sm:text-sm font-semibold rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-400 cursor-pointer shadow-2xs"
+            >
+              <option value="todos">Toda Quantidade</option>
+              {uniqueQuantidades.map((qtd) => (
+                <option key={qtd} value={qtd}>
+                  Qtd: {qtd}
+                </option>
+              ))}
             </select>
 
             {/* Sort by */}
@@ -353,8 +502,8 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
         </div>
 
         {/* Active Filters Display */}
-        {(tipoFiltro || procedenciaFiltro !== 'todos' || searchTerm) && (
-          <div className="flex items-center gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-xs text-neutral-500">
+        {(tipoFiltro || procedenciaFiltro !== 'todos' || quantidadeFiltro !== 'todos' || cnpjFiltro || searchTerm) && (
+          <div className="flex items-center gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-xs text-neutral-500 flex-wrap">
             <span className="font-medium">Filtros:</span>
             {tipoFiltro && (
               <span className="inline-flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded text-neutral-700 dark:text-neutral-300 font-medium text-[11px]">
@@ -368,6 +517,19 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                 <button onClick={() => setProcedenciaFiltro('todos')} className="hover:text-red-600">×</button>
               </span>
             )}
+            {quantidadeFiltro !== 'todos' && (
+              <span className="inline-flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded text-neutral-700 dark:text-neutral-300 font-medium text-[11px]">
+                Qtd: {quantidadeFiltro}
+                <button onClick={() => setQuantidadeFiltro('todos')} className="hover:text-red-600">×</button>
+              </span>
+            )}
+            {cnpjFiltro && (
+              <span className="inline-flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded text-neutral-700 dark:text-neutral-300 font-medium text-[11px]">
+                <Building2 className="w-3 h-3 text-[#E30613]" />
+                CNPJ: {cnpjFiltro}
+                <button onClick={() => setCnpjFiltro(null)} className="hover:text-red-600">×</button>
+              </span>
+            )}
             {searchTerm && (
               <span className="inline-flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded text-neutral-700 dark:text-neutral-300 font-medium text-[11px]">
                 Busca: "{searchTerm}"
@@ -378,6 +540,8 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
               onClick={() => {
                 setSearchTerm('');
                 setProcedenciaFiltro('todos');
+                setQuantidadeFiltro('todos');
+                setCnpjFiltro(null);
                 if (onTipoFiltroChange) onTipoFiltroChange(null);
               }}
               className="text-[#E30613] hover:underline font-medium text-[11px] ml-auto"
@@ -423,13 +587,32 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
               processo.dataEmissao
             );
 
+            const isProcessoExtensao = Boolean(processo.isExtensao || processo.tipo === 'Extensão');
+            const extensoesDesteProcesso = processos.filter(
+              (p) =>
+                p.id !== processo.id &&
+                Boolean(p.isExtensao || p.tipo === 'Extensão') &&
+                (p.processoOriginalId === processo.id ||
+                  (p.mmvOriginal && (p.mmvOriginal === processo.mmv || p.mmvOriginal === processo.numeroSolicitacao)))
+            );
+
             return (
               <div
                 key={processo.id}
-                className="bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 rounded-xl shadow-xs transition-colors overflow-hidden"
+                className={`rounded-xl shadow-xs transition-colors overflow-hidden border-2 ${
+                  isProcessoExtensao
+                    ? 'bg-emerald-50/20 dark:bg-emerald-950/25 border-emerald-500/80 dark:border-emerald-500/60 ring-1 ring-emerald-400/20'
+                    : 'bg-white dark:bg-neutral-900 border-neutral-200/90 dark:border-neutral-800'
+                }`}
               >
                 {/* Header row of the card */}
-                <div className="p-3.5 sm:p-4 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div
+                  className={`p-3.5 sm:p-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                    isProcessoExtensao
+                      ? 'bg-emerald-100/60 dark:bg-emerald-900/40 border-emerald-200 dark:border-emerald-800'
+                      : 'bg-neutral-50/50 dark:bg-neutral-800/30 border-neutral-100 dark:border-neutral-800'
+                  }`}
+                >
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Solicitation number */}
                     <span className="font-mono text-sm font-bold text-neutral-900 dark:text-white">
@@ -440,10 +623,30 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                     <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">
                       {processo.tipo}
                     </span>
+                    {/* Badge de Extensão se for processo de extensão */}
+                    {isProcessoExtensao && (
+                      <span className="text-xs font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/80 px-2 py-0.5 rounded border border-emerald-300 dark:border-emerald-700 inline-flex items-center gap-1 shadow-2xs">
+                        <GitBranch className="w-3 h-3 text-emerald-600 dark:text-emerald-300" />
+                        <span>Extensão</span>
+                      </span>
+                    )}
+                    {/* Órgão Certificador: IMT ou CETESB */}
+                    {processo.orgaoCertificador && (
+                      <span className="text-xs font-bold font-mono tracking-tight text-neutral-800 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/90 dark:border-neutral-700 px-2 py-0.5 rounded shadow-2xs">
+                        {processo.orgaoCertificador}
+                      </span>
+                    )}
                     {/* Provenance */}
                     <span className="text-xs font-medium text-neutral-500 bg-neutral-100/70 dark:bg-neutral-800/70 px-2 py-0.5 rounded">
                       {processo.procedencia}
                     </span>
+                    {/* CNPJ Badge */}
+                    {processo.cnpj && (
+                      <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded border border-neutral-200/80 dark:border-neutral-700">
+                        <Building2 className="w-3 h-3 text-[#E30613]" />
+                        <span>CNPJ: {processo.cnpj}</span>
+                      </span>
+                    )}
                     {/* Vehicle Type */}
                     <span className="text-xs text-neutral-500 font-normal">
                       {processo.tipoVeiculo}
@@ -465,6 +668,85 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
 
                 {/* Body: Process Fields */}
                 <div className="p-4 sm:p-5 space-y-3.5">
+                  {/* Banner de Extensão se for processo de extensão */}
+                  {isProcessoExtensao && (
+                    <div className="p-3 bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-lg text-emerald-900 dark:text-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <GitBranch className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <div>
+                          <span className="font-bold">Extensão originada do processo matriz:</span>{' '}
+                          <strong className="font-mono text-emerald-950 dark:text-emerald-100 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 rounded border border-emerald-300/60 dark:border-emerald-700/60">
+                            {processo.mmvOriginal || 'Processo Matriz'}
+                          </strong>
+                        </div>
+                      </div>
+                      <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-200/70 dark:bg-emerald-800/80 text-emerald-900 dark:text-emerald-100 font-bold self-start sm:self-auto">
+                        Extensão Ativa
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Banner de extensões filhas se o processo original gerou extensões */}
+                  {extensoesDesteProcesso.length > 0 && (
+                    <div className="p-3 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-700/80 rounded-lg space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 dark:text-emerald-200">
+                          <GitBranch className="w-4 h-4 text-emerald-600" />
+                          <span>Este processo possui {extensoesDesteProcesso.length} extensão(ões) gerada(s) a partir dele</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleExpandedExtensoes(processo.id)}
+                          className="text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-100 inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/60 dark:hover:bg-emerald-800 transition-colors cursor-pointer"
+                        >
+                          <span>{expandedExtensoes[processo.id] ? 'Ocultar' : 'Ver quais são'}</span>
+                          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedExtensoes[processo.id] ? 'rotate-180' : ''}`} />
+                        </button>
+                      </div>
+                      {expandedExtensoes[processo.id] && (
+                        <div className="pt-2 border-t border-emerald-200 dark:border-emerald-800 space-y-2 animate-in fade-in-0 duration-150">
+                          {extensoesDesteProcesso.map((ext) => (
+                            <div
+                              key={ext.id}
+                              className="p-2.5 rounded-lg bg-white dark:bg-neutral-800 border border-emerald-200 dark:border-emerald-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shadow-2xs"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300 shrink-0">
+                                  {ext.numeroSolicitacao}
+                                </span>
+                                <span className="text-neutral-400">·</span>
+                                <span className="font-semibold text-neutral-900 dark:text-white truncate">
+                                  {ext.mmv}
+                                </span>
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 shrink-0">
+                                  {ext.situacao}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenObservations(ext)}
+                                  className="p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                                  title="Observações da extensão"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onEditProcesso(ext)}
+                                  className="px-2 py-1 rounded text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors inline-flex items-center gap-1 shadow-2xs"
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                  <span>Ver / Editar Extensão</span>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Primary MMV & License block */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -475,9 +757,25 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                         {processo.mmv}
                       </div>
 
-                      {processo.mmvOriginal && (
+                      {processo.mmvOriginal && !isProcessoExtensao && (
                         <div className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded px-2 py-0.5 mt-1 inline-block">
                           <span className="font-semibold">Base:</span> {processo.mmvOriginal}
+                        </div>
+                      )}
+
+                      {processo.cnpj && (
+                        <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 flex items-center gap-1.5">
+                          <span className="font-medium text-neutral-400">CNPJ:</span>
+                          <span className="font-mono font-semibold text-neutral-800 dark:text-neutral-200">{processo.cnpj}</span>
+                          <span className="text-[10px] text-neutral-400 font-mono">({formatarCNPJ(processo.cnpj)})</span>
+                        </div>
+                      )}
+
+                      {processo.orgaoCertificador && (
+                        <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 flex items-center gap-1.5">
+                          <span className="font-medium text-neutral-400">Órgão Técnico:</span>
+                          <span className="font-bold font-mono text-neutral-800 dark:text-neutral-200">{processo.orgaoCertificador}</span>
+                          <span className="text-[11px] text-neutral-400">({processo.orgaoCertificador === 'IMT' ? 'Instituto Mauá' : 'CETESB'})</span>
                         </div>
                       )}
                     </div>
@@ -620,6 +918,17 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                     </button>
 
                     <div className="flex items-center gap-2">
+                      {/* Botão Criar extensão */}
+                      <button
+                        type="button"
+                        onClick={() => onCreateExtensao ? onCreateExtensao(processo) : undefined}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 transition-colors inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                        title={`Gerar uma extensão a partir de ${processo.mmv}`}
+                      >
+                        <GitBranch className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span>Criar extensão</span>
+                      </button>
+
                       <button
                         onClick={() => onEditProcesso(processo)}
                         className="px-3 py-1.5 rounded-lg text-xs font-medium bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-colors inline-flex items-center gap-1.5"

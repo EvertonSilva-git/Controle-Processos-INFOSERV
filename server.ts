@@ -7,7 +7,27 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = parseInt(process.env.PORT || '3000', 10);
+// Resolve port safely: Default to 3000 as required by the AI Studio environment.
+// Note: In Cloud Run, process.env.PORT is 8080 which is reserved by Nginx reverse proxy.
+let RESOLVED_PORT = 3000;
+for (let i = 0; i < process.argv.length; i++) {
+  const arg = process.argv[i];
+  if ((arg === '--port' || arg === '-p') && process.argv[i + 1]) {
+    RESOLVED_PORT = parseInt(process.argv[i + 1], 10);
+  } else if (arg.startsWith('--port=')) {
+    RESOLVED_PORT = parseInt(arg.split('=')[1], 10);
+  }
+}
+if (process.env.DEFAULT_APP_PORT && RESOLVED_PORT === 3000) {
+  RESOLVED_PORT = parseInt(process.env.DEFAULT_APP_PORT, 10);
+} else if (process.env.PORT && process.env.PORT !== '8080' && RESOLVED_PORT === 3000) {
+  RESOLVED_PORT = parseInt(process.env.PORT, 10);
+}
+// Crucial safeguard: never try to listen on port 8080 (reserved by Nginx)
+if (RESOLVED_PORT === 8080) {
+  RESOLVED_PORT = 3000;
+}
+const PORT = RESOLVED_PORT;
 const isProd = process.env.NODE_ENV === 'production';
 
 // Ensure data folder exists
@@ -18,6 +38,50 @@ if (!fs.existsSync(DATA_DIR)) {
 
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const PROCESSOS_FILE = path.join(DATA_DIR, 'processos.json');
+const CNPJS_FILE = path.join(DATA_DIR, 'cnpjs.json');
+
+const DEFAULT_CNPJS = [
+  {
+    raw: '12482805000106',
+    formatted: '12.482.805/0001-06',
+    label: '12482805000106',
+  },
+  {
+    raw: '12482805000289',
+    formatted: '12.482.805/0002-89',
+    label: '12482805000289',
+  },
+  {
+    raw: '12482805000360',
+    formatted: '12.482.805/0003-60',
+    label: '12482805000360',
+  },
+];
+
+function readCnpjs() {
+  try {
+    if (fs.existsSync(CNPJS_FILE)) {
+      const data = fs.readFileSync(CNPJS_FILE, 'utf-8');
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao ler cnpjs.json:', err);
+  }
+  return DEFAULT_CNPJS;
+}
+
+function writeCnpjs(cnpjs: any[]) {
+  try {
+    fs.writeFileSync(CNPJS_FILE, JSON.stringify(cnpjs, null, 2), 'utf-8');
+    return true;
+  } catch (err) {
+    console.error('Erro ao escrever cnpjs.json:', err);
+    return false;
+  }
+}
 
 // Default initial settings
 const DEFAULT_SETTINGS = {
@@ -178,6 +242,27 @@ async function startServer() {
     res.status(400).json({ success: false, error: 'Dados inválidos' });
   });
 
+  // Global CNPJs API (shared across all users)
+  app.get('/api/cnpjs', (_req, res) => {
+    const cnpjs = readCnpjs();
+    res.json({ cnpjs });
+  });
+
+  app.post('/api/cnpjs', (req, res) => {
+    const { cnpjs } = req.body;
+    if (Array.isArray(cnpjs)) {
+      const success = writeCnpjs(cnpjs);
+      if (success) {
+        return res.json({ success: true, count: cnpjs.length });
+      }
+    }
+    res.status(400).json({ success: false, error: 'Dados inválidos' });
+  });
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server started on http://0.0.0.0:${PORT} (${isProd ? 'Production' : 'Development'})`);
+  });
+
   if (isProd) {
     const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
@@ -191,10 +276,6 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server started on http://0.0.0.0:${PORT} (${isProd ? 'Production' : 'Development'})`);
-  });
 }
 
 startServer().catch((err) => {

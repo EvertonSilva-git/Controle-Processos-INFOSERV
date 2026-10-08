@@ -3,36 +3,63 @@ import {
   Processo, 
   ProcessoTipo, 
   Procedencia, 
+  OrgaoCertificador,
   SituacaoProcesso, 
   TipoVeiculo,
-  Observacao 
+  Observacao,
+  CnpjOption,
+  CNPJ_OPTIONS,
+  formatarCNPJ
 } from '../types/process';
 import {
   obterPrefixoSolicitacao,
-  obterPrefixoMMV,
   obterTiposVeiculoPermitidos,
   obterOpcoesQuantidade,
+  montarMMV,
+  decomporMMV,
 } from '../utils/processCalculations';
 import { 
   Check, 
   ArrowLeft, 
   FileCheck, 
-  AlertCircle 
+  AlertCircle,
+  Building2,
+  Plus,
+  GitBranch
 } from 'lucide-react';
+import { AddCnpjModal } from './AddCnpjModal';
 
 interface ProcessFormScreenProps {
   onSave: (processo: Processo) => void;
   onCancel: () => void;
   initialData?: Processo | null;
+  cnpjs?: CnpjOption[];
+  onAddCnpj?: (newCnpj: CnpjOption) => void;
+  isExtensao?: boolean;
+  processoOriginal?: Processo | null;
+  currentUser?: string | null;
 }
 
 export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
   onSave,
   onCancel,
   initialData,
+  cnpjs = CNPJ_OPTIONS,
+  onAddCnpj,
+  isExtensao = false,
+  processoOriginal,
+  currentUser,
 }) => {
+  const [isAddCnpjModalOpen, setIsAddCnpjModalOpen] = useState(false);
+
+  const isExtensaoProcesso = Boolean(isExtensao || initialData?.isExtensao || processoOriginal);
+
   // 1. Tipo
-  const [tipo, setTipo] = useState<ProcessoTipo>(initialData?.tipo || 'LCM');
+  const [tipo, setTipo] = useState<ProcessoTipo>(() => {
+    if (initialData?.tipo && initialData.tipo !== 'Extensão') return initialData.tipo;
+    if (processoOriginal?.tipo && processoOriginal.tipo !== 'Extensão') return processoOriginal.tipo;
+    return 'LCM';
+  });
 
   // 2. Número da solicitação (storing number portion or complete with prefix)
   const prefixoSolicitacao = obterPrefixoSolicitacao(tipo);
@@ -45,20 +72,41 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
 
   // 3. Procedência
   const [procedencia, setProcedencia] = useState<Procedencia>(
-    initialData?.procedencia || 'Nacional'
+    initialData?.procedencia || processoOriginal?.procedencia || 'Nacional'
   );
 
-  // 4. MMV (Marca/Modelo/Versão) - store the model part
-  const prefixoMMV = obterPrefixoMMV(procedencia);
-  const [modeloInput, setModeloInput] = useState<string>(() => {
-    if (initialData?.mmv) {
-      return initialData.mmv.replace(/^(I\/SHINERAY\/|SHINERAY\/)/i, '');
-    }
-    return '';
+  // Órgão Certificador (IMT ou CETESB)
+  const [orgaoCertificador, setOrgaoCertificador] = useState<OrgaoCertificador>(
+    initialData?.orgaoCertificador || processoOriginal?.orgaoCertificador || 'IMT'
+  );
+
+  // 4. MMV decomposto em Marca, Modelo e Veículo/Versão
+  const decomposto = initialData?.mmv
+    ? decomporMMV(initialData.mmv, initialData.procedencia)
+    : (processoOriginal?.mmv
+        ? decomporMMV(processoOriginal.mmv, processoOriginal.procedencia)
+        : { marca: '', modelo: '', veiculo: '' });
+
+  const [marcaInput, setMarcaInput] = useState<string>(() => {
+    if (initialData?.marca) return initialData.marca;
+    if (processoOriginal?.marca) return processoOriginal.marca;
+    return decomposto.marca || '';
   });
 
-  // 5. MMV Original (only if tipo === 'Extensão')
-  const [mmvOriginal, setMmvOriginal] = useState<string>(initialData?.mmvOriginal || '');
+  const [modeloInput, setModeloInput] = useState<string>(() => {
+    if (initialData?.modelo) return initialData.modelo;
+    return decomposto.modelo || '';
+  });
+
+  const [veiculoInput, setVeiculoInput] = useState<string>(() => {
+    if (initialData?.veiculo) return initialData.veiculo;
+    return decomposto.veiculo || '';
+  });
+
+  // 5. MMV Original (only if tipo === 'Extensão' ou isExtensaoProcesso)
+  const [mmvOriginal, setMmvOriginal] = useState<string>(
+    initialData?.mmvOriginal || processoOriginal?.mmv || ''
+  );
 
   // 6. Número da Licença (optional)
   const [numeroLicenca, setNumeroLicenca] = useState<string>(initialData?.numeroLicenca || '');
@@ -99,6 +147,12 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
   // 13. Data de validade da licença
   const [dataValidade, setDataValidade] = useState<string>(initialData?.dataValidade || '');
 
+  // 14. CNPJ da Homologação (Fabricante / Filial)
+  const [cnpj, setCnpj] = useState<string>(() => {
+    if (initialData?.cnpj) return initialData.cnpj;
+    return '12482805000106'; // Matriz pré-selecionada
+  });
+
   // Optional first note
   const [notaInicial, setNotaInicial] = useState<string>('');
 
@@ -134,11 +188,15 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
       novosErros.numeroSolicitacao = 'Informe o número da solicitação.';
     }
 
-    if (!modeloInput.trim()) {
-      novosErros.mmv = 'Informe a identificação do modelo/versão.';
+    if (!marcaInput.trim()) {
+      novosErros.marca = 'Informe a Marca do veículo.';
     }
 
-    if (tipo === 'Extensão' && !mmvOriginal.trim()) {
+    if (!modeloInput.trim()) {
+      novosErros.modelo = 'Informe o Modelo (ex: SBM, WORKER).';
+    }
+
+    if (isExtensaoProcesso && !mmvOriginal.trim()) {
       novosErros.mmvOriginal = 'Para extensão, é obrigatório informar o MMV Original.';
     }
 
@@ -155,7 +213,7 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
 
     // Construct full values
     const fullSolicitacao = `${prefixoSolicitacao} ${numeroSolicitacaoInput.trim()}`;
-    const fullMMV = `${prefixoMMV}${modeloInput.trim()}`;
+    const fullMMV = montarMMV(procedencia, marcaInput, modeloInput, veiculoInput);
 
     const agora = new Date().toISOString();
     const observacoes: Observacao[] = initialData ? [...initialData.observacoes] : [];
@@ -165,7 +223,7 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
         id: `obs-${Date.now()}`,
         texto: notaInicial.trim(),
         dataHora: agora,
-        autor: 'Analista de Homologação Shineray',
+        autor: currentUser || 'Luca Andrade',
       });
     }
 
@@ -174,13 +232,20 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
       tipo,
       numeroSolicitacao: fullSolicitacao,
       procedencia,
+      orgaoCertificador,
       mmv: fullMMV,
-      mmvOriginal: tipo === 'Extensão' ? mmvOriginal.trim() : undefined,
+      marca: marcaInput.trim().toUpperCase(),
+      modelo: modeloInput.trim().toUpperCase(),
+      veiculo: veiculoInput.trim().toUpperCase() || undefined,
+      isExtensao: isExtensaoProcesso,
+      processoOriginalId: processoOriginal?.id || initialData?.processoOriginalId || undefined,
+      mmvOriginal: isExtensaoProcesso ? mmvOriginal.trim() : undefined,
       numeroLicenca: numeroLicenca.trim() || undefined,
       quantidade: !qtdConfig.isOmitted ? quantidade.trim() : undefined,
       tipoVeiculo,
       dataInicio,
       situacao,
+      cnpj: cnpj.trim() || undefined,
       dataEnvio: dataEnvio || undefined,
       dataEmissao: dataEmissao || undefined,
       dataValidade: dataValidade || undefined,
@@ -245,13 +310,35 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Banner de Extensão se aplicável */}
+            {isExtensaoProcesso && (
+              <div className="sm:col-span-2 p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-xl text-emerald-900 dark:text-emerald-200 flex items-center justify-between shadow-2xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 bg-emerald-600 text-white rounded-lg">
+                    <GitBranch className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wide">
+                      Processo de Extensão de Homologação
+                    </div>
+                    <div className="text-[11px] text-emerald-700 dark:text-emerald-300">
+                      Vinculado ao processo original: <strong>{mmvOriginal || 'Original'}</strong>
+                    </div>
+                  </div>
+                </div>
+                <span className="text-[11px] font-mono px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900 rounded font-semibold text-emerald-800 dark:text-emerald-200">
+                  Extensão Ativa
+                </span>
+              </div>
+            )}
+
             {/* Campo 1: Tipo */}
             <div className="space-y-1.5 sm:col-span-2">
               <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 1. Tipo de Processo <span className="text-[#E30613]">*</span>
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-                {(['LCVM', 'LCVM Especial', 'LCM', 'LCM Especial', 'Dispensa', 'Extensão'] as ProcessoTipo[]).map(
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                {(['LCVM', 'LCVM Especial', 'LCM', 'LCM Especial', 'Dispensa'] as ProcessoTipo[]).map(
                   (t) => (
                     <button
                       key={t}
@@ -331,47 +418,213 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                 ))}
               </div>
               <p className="text-[11px] text-neutral-400">
-                Define o prefixo do MMV ({procedencia === 'Nacional' ? 'SHINERAY/' : 'I/SHINERAY/'}).
+                {procedencia === 'Importado' ? 'Aplica prefixo "I/" no início do MMV' : 'Procedência Nacional (sem prefixo I/)'}
               </p>
             </div>
 
-            {/* Campo 4: MMV */}
+            {/* Campo: Órgão Certificador (IMT ou CETESB) */}
             <div className="space-y-1.5 sm:col-span-2">
               <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                4. MMV (Marca / Modelo / Versão) <span className="text-[#E30613]">*</span>
+                4. Órgão Homologador / Certificador <span className="text-[#E30613]">*</span>
               </label>
-              <div className="flex rounded-lg shadow-2xs">
-                <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-mono font-bold text-xs sm:text-sm whitespace-nowrap">
-                  {prefixoMMV}
-                </span>
-                <input
-                  type="text"
-                  value={modeloInput}
-                  onChange={(e) => setModeloInput(e.target.value.toUpperCase())}
-                  placeholder="Ex: WORKER 125, STORM 200 PRO, SHE S 3000W"
-                  className={`flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-lg border text-sm font-medium tracking-wide uppercase bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-500 ${
-                    erros.mmv ? 'border-rose-400 bg-rose-50/20' : 'border-neutral-200 dark:border-neutral-700'
-                  }`}
-                />
+              <div className="grid grid-cols-2 gap-2.5 max-w-md">
+                {(['IMT', 'CETESB'] as OrgaoCertificador[]).map((org) => {
+                  const isSelected = orgaoCertificador === org;
+                  return (
+                    <button
+                      key={org}
+                      type="button"
+                      onClick={() => setOrgaoCertificador(org)}
+                      className={`py-2.5 px-3.5 rounded-lg text-xs font-bold transition-all border text-center flex items-center justify-between ${
+                        isSelected
+                          ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 border-neutral-900 dark:border-white shadow-2xs ring-1 ring-neutral-900 dark:ring-white'
+                          : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold">{org}</span>
+                        <span className={`text-[10px] font-normal ${isSelected ? 'text-neutral-300 dark:text-neutral-600' : 'text-neutral-400'}`}>
+                          {org === 'IMT' ? 'Instituto Mauá' : 'CETESB'}
+                        </span>
+                      </div>
+                      {isSelected && (
+                        <div className="p-0.5 rounded-full bg-[#E30613] text-white">
+                          <Check className="w-2.5 h-2.5" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-              <div className="flex justify-between items-center text-[11px] text-neutral-400">
-                <span>Exibição no Infoserv:</span>
-                <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300">
-                  {prefixoMMV}{modeloInput || '_____'}
-                </span>
-              </div>
-              {erros.mmv && (
-                <p className="text-[11px] text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" /> {erros.mmv}
-                </p>
-              )}
+              <p className="text-[11px] text-neutral-400">
+                Selecione a entidade técnica responsável pelos ensaios (IMT ou CETESB).
+              </p>
             </div>
 
-            {/* Campo 5: MMV Original (Apenas se for Extensão) */}
-            {tipo === 'Extensão' && (
-              <div className="space-y-1.5 sm:col-span-2 p-3.5 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 rounded-lg">
+            {/* Campo: CNPJ da Empresa / Titular da Homologação */}
+            <div className="space-y-2 sm:col-span-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  CNPJ da Empresa / Unidade <span className="text-[#E30613]">*</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  {cnpj && (
+                    <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
+                      Formatado: <strong className="text-neutral-800 dark:text-neutral-200">{formatarCNPJ(cnpj)}</strong>
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsAddCnpjModalOpen(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[#E30613] hover:underline"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Adicionar outro CNPJ</span>
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {cnpjs.map((opt) => {
+                  const isSelected = cnpj.replace(/\D/g, '') === opt.raw;
+                  return (
+                    <button
+                      key={opt.raw}
+                      type="button"
+                      onClick={() => setCnpj(opt.raw)}
+                      className={`p-3 rounded-lg border text-left transition-all relative flex flex-col justify-between ${
+                        isSelected
+                          ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 border-neutral-900 dark:border-white shadow-2xs ring-1 ring-neutral-900 dark:ring-white'
+                          : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Building2 className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-[#E30613]' : 'text-neutral-400'}`} />
+                          <span className="font-mono text-xs font-bold tracking-tight truncate">
+                            {opt.raw}
+                          </span>
+                        </div>
+                        {isSelected && (
+                          <div className="p-0.5 rounded-full bg-[#E30613] text-white shrink-0">
+                            <Check className="w-2.5 h-2.5" />
+                          </div>
+                        )}
+                      </div>
+                      <div className={`text-[11px] font-mono mt-0.5 ${isSelected ? 'text-neutral-300 dark:text-neutral-600' : 'text-neutral-500 dark:text-neutral-400'}`}>
+                        {opt.formatted}
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {/* Button card to add new CNPJ */}
+                <button
+                  type="button"
+                  onClick={() => setIsAddCnpjModalOpen(true)}
+                  className="p-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/30 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-all flex flex-col items-center justify-center gap-1 text-center group"
+                >
+                  <Plus className="w-4 h-4 text-[#E30613] group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-medium">+ Outro CNPJ</span>
+                  <span className="text-[10px] text-neutral-400">Cadastrar novo</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-neutral-400">
+                Selecione o CNPJ da Shineray responsável pela solicitação e emissão no Infoserv/IBAMA.
+              </p>
+            </div>
+
+            {/* Campo 5: MMV Separado em Marca, Modelo e Veículo/Versão */}
+            <div className="space-y-3 sm:col-span-2 p-4 bg-neutral-50/80 dark:bg-neutral-800/40 border border-neutral-200/80 dark:border-neutral-700/80 rounded-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                  5. Identificação MMV (Marca / Modelo / Veículo) <span className="text-[#E30613]">*</span>
+                </label>
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  {procedencia === 'Importado' ? 'Prefixo "I/" aplicado automaticamente para importados' : 'Procedência Nacional (sem prefixo I/)'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. Marca */}
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
+                    Marca <span className="text-[#E30613]">*</span>
+                  </label>
+                  <div className="relative">
+                    {procedencia === 'Importado' && (
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/80 px-1.5 py-0.5 rounded">
+                        I/
+                      </span>
+                    )}
+                    <input
+                      type="text"
+                      value={marcaInput}
+                      onChange={(e) => setMarcaInput(e.target.value.toUpperCase())}
+                      placeholder="Ex: SHINERAY, VOLT, SBM..."
+                      className={`w-full ${procedencia === 'Importado' ? 'pl-9' : 'px-3'} py-2 rounded-lg border text-sm font-semibold tracking-wide uppercase bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-500 ${
+                        erros.marca ? 'border-rose-400 bg-rose-50/20' : 'border-neutral-200 dark:border-neutral-700'
+                      }`}
+                    />
+                  </div>
+                  {erros.marca && (
+                    <p className="text-[10px] text-rose-600 dark:text-rose-400">
+                      {erros.marca}
+                    </p>
+                  )}
+                </div>
+
+                {/* 2. Modelo */}
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
+                    Modelo <span className="text-[#E30613]">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={modeloInput}
+                    onChange={(e) => setModeloInput(e.target.value.toUpperCase())}
+                    placeholder="Ex: SBM, WORKER, T20"
+                    className={`w-full px-3 py-2 rounded-lg border text-sm font-semibold tracking-wide uppercase bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-500 ${
+                      erros.modelo ? 'border-rose-400 bg-rose-50/20' : 'border-neutral-200 dark:border-neutral-700'
+                    }`}
+                  />
+                  {erros.modelo && (
+                    <p className="text-[10px] text-rose-600 dark:text-rose-400">
+                      {erros.modelo}
+                    </p>
+                  )}
+                </div>
+
+                {/* 3. Veículo / Versão */}
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
+                    Veículo / Versão
+                  </label>
+                  <input
+                    type="text"
+                    value={veiculoInput}
+                    onChange={(e) => setVeiculoInput(e.target.value.toUpperCase())}
+                    placeholder="Ex: 500, 125, PRO, CABINE SIMPLES 1.0"
+                    className="w-full px-3 py-2 rounded-lg border text-sm font-semibold tracking-wide uppercase bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-500 border-neutral-200 dark:border-neutral-700"
+                  />
+                </div>
+              </div>
+
+              {/* Pré-visualização do MMV Formatado */}
+              <div className="pt-2.5 border-t border-neutral-200/80 dark:border-neutral-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                <span className="text-neutral-500 dark:text-neutral-400">
+                  Visualização unificada no cartão do processo:
+                </span>
+                <span className="font-mono font-bold text-neutral-900 dark:text-white bg-white dark:bg-neutral-900 px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 shadow-2xs">
+                  {montarMMV(procedencia, marcaInput, modeloInput, veiculoInput) || 'Aguardando preenchimento...'}
+                </span>
+              </div>
+            </div>
+
+            {/* Campo 6: MMV Original (Apenas se for Extensão) */}
+            {isExtensaoProcesso && (
+              <div className="space-y-1.5 sm:col-span-2 p-3.5 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/40 rounded-lg">
                 <label className="block text-xs font-semibold text-neutral-800 dark:text-neutral-200">
-                  5. MMV Original (Modelo de Origem) <span className="text-[#E30613]">*</span>
+                  6. MMV Original (Modelo de Origem da Extensão) <span className="text-[#E30613]">*</span>
                 </label>
                 <input
                   type="text"
@@ -383,7 +636,7 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                   }`}
                 />
                 <p className="text-[11px] text-neutral-500">
-                  Obrigatório para o tipo Extensão: MMV matriz da homologação anterior.
+                  Obrigatório para Extensão: MMV matriz da homologação anterior.
                 </p>
                 {erros.mmvOriginal && (
                   <p className="text-[11px] text-rose-600 dark:text-rose-400 flex items-center gap-1">
@@ -463,15 +716,15 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
               <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 8. Tipo de Veículo <span className="text-[#E30613]">*</span>
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                 {tiposPermitidos.map((v) => (
                   <button
                     key={v}
                     type="button"
                     onClick={() => setTipoVeiculo(v)}
-                    className={`py-2 px-3 rounded-lg text-xs font-medium transition-colors border text-center ${
+                    className={`py-2 px-2.5 rounded-lg text-xs font-medium transition-colors border text-center ${
                       tipoVeiculo === v
-                        ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 border-neutral-900 dark:border-white shadow-2xs'
+                        ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 border-neutral-900 dark:border-white shadow-2xs font-semibold'
                         : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700'
                     }`}
                   >
@@ -532,6 +785,7 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                 <option value="Encaminhada para o ibama">Encaminhada para o ibama</option>
                 <option value="Em análise pelo Analista do ATC">Em análise pelo Analista do ATC</option>
                 <option value="A pagar">A pagar</option>
+                <option value="Para correção">Para correção</option>
                 <option value="Licença/Certidão emitida">Licença/Certidão emitida</option>
               </select>
               <p className="text-[11px] text-neutral-400">
@@ -629,6 +883,19 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
           </button>
         </div>
       </form>
+
+      {/* Modal para adicionar novo CNPJ */}
+      <AddCnpjModal
+        isOpen={isAddCnpjModalOpen}
+        onClose={() => setIsAddCnpjModalOpen(false)}
+        onSave={(newCnpj) => {
+          if (onAddCnpj) {
+            onAddCnpj(newCnpj);
+          }
+          setCnpj(newCnpj.raw);
+        }}
+        existingCnpjs={cnpjs}
+      />
     </div>
   );
 };

@@ -1,3 +1,52 @@
 @import "tailwindcss";
 
 @variant dark (&:where(.dark, .dark *));
+
+@keyframes piscarGradualAmarelo {
+  0%, 100% {
+    background-color: #FEF08A; /* yellow-200: amarelo claro nítido e suave */
+    border-color: #F59E0B; /* amber-500 */
+    box-shadow: 0 2px 8px 0 rgba(245, 158, 11, 0.2), 0 0 0 1px rgba(245, 158, 11, 0.25);
+    filter: brightness(0.97);
+  }
+  50% {
+    background-color: #FACC15; /* yellow-400: amarelo vivo, intenso e brilhante */
+    border-color: #D97706; /* amber-600 */
+    box-shadow: 0 0 28px 5px rgba(245, 158, 11, 0.7), 0 0 0 3px rgba(217, 119, 6, 0.45), inset 0 0 20px rgba(254, 240, 138, 0.75);
+    filter: brightness(1.12);
+  }
+}
+
+@keyframes piscarGradualAmareloDark {
+  0%, 100% {
+    background-color: rgba(146, 64, 14, 0.45); /* âmbar escuro suave */
+    border-color: rgba(217, 119, 6, 0.6);
+    box-shadow: 0 2px 8px 0 rgba(245, 158, 11, 0.2);
+    filter: brightness(0.95);
+  }
+  50% {
+    background-color: rgba(180, 83, 9, 0.85); /* âmbar dourado intenso */
+    border-color: #F59E0B;
+    box-shadow: 0 0 30px 6px rgba(245, 158, 11, 0.75), 0 0 0 3px rgba(245, 158, 11, 0.5), inset 0 0 22px rgba(245, 158, 11, 0.4);
+    filter: brightness(1.2);
+  }
+}
+
+.revalidacao-pulse-amber {
+  background-color: #FEF08A !important;
+  border-color: #F59E0B !important;
+  animation: piscarGradualAmarelo 2s ease-in-out infinite !important;
+}
+
+:where(.dark, .dark *) .revalidacao-pulse-amber {
+  background-color: rgba(146, 64, 14, 0.45) !important;
+  border-color: #F59E0B !important;
+  animation: piscarGradualAmareloDark 2s ease-in-out infinite !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .revalidacao-pulse-amber,
+  :where(.dark, .dark *) .revalidacao-pulse-amber {
+    animation: none !important;
+  }
+}

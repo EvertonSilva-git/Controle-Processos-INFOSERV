@@ -102,11 +102,11 @@ export function obterPrefixoSolicitacao(tipo: ProcessoTipo): 'SD' | 'SL' {
 }
 
 /**
- * Returns MMV prefix based on provenance:
- * 'SHINERAY/' for Nacional, 'I/SHINERAY/' for Importado
+ * Retorna o prefixo do MMV com base na procedência:
+ * 'I/' para Importado, '' para Nacional
  */
-export function obterPrefixoMMV(procedencia: Procedencia): 'SHINERAY/' | 'I/SHINERAY/' {
-  return procedencia === 'Importado' ? 'I/SHINERAY/' : 'SHINERAY/';
+export function obterPrefixoMMV(procedencia: Procedencia): 'I/' | '' {
+  return procedencia === 'Importado' ? 'I/' : '';
 }
 
 /**
@@ -115,15 +115,33 @@ export function obterPrefixoMMV(procedencia: Procedencia): 'SHINERAY/' | 'I/SHIN
 export function obterTiposVeiculoPermitidos(tipo: ProcessoTipo): TipoVeiculo[] {
   switch (tipo) {
     case 'LCVM':
+      return [
+        'Veículo leve de passageiros',
+        'Veículo leve comercial',
+        'Motor',
+        'Veículo pesado',
+        'Chassi',
+        'Ônibus',
+        'Máquina Agrícola ou Rodoviária'
+      ];
     case 'LCVM Especial':
-      return ['Veículo leve de passageiros', 'Veículo leve comercial'];
+      return [
+        'Máquina Agrícola e Rodoviária',
+        'Veículo leve comercial',
+        'Veículo leve de passageiros',
+        'Veículo pesado'
+      ];
     case 'LCM':
       return ['Motocicleta'];
     case 'LCM Especial':
       return [
+        'Ciclomotor',
+        'Minimoto',
+        'Motocicleta',
+        'Motocicleta de competição',
         'Motocicleta fora de estrada',
         'Triciclo/Quadriciclo',
-        'Triciclo/Quadriciclo fora de estrada',
+        'Triciclo/Quadriciclo fora de estrada'
       ];
     case 'Dispensa':
       return ['Protótipo'];
@@ -131,10 +149,19 @@ export function obterTiposVeiculoPermitidos(tipo: ProcessoTipo): TipoVeiculo[] {
       return [
         'Veículo leve de passageiros',
         'Veículo leve comercial',
+        'Motor',
+        'Veículo pesado',
+        'Chassi',
+        'Ônibus',
+        'Máquina Agrícola ou Rodoviária',
+        'Máquina Agrícola e Rodoviária',
+        'Ciclomotor',
+        'Minimoto',
         'Motocicleta',
+        'Motocicleta de competição',
         'Motocicleta fora de estrada',
         'Triciclo/Quadriciclo',
-        'Triciclo/Quadriciclo fora de estrada',
+        'Triciclo/Quadriciclo fora de estrada'
       ];
     default:
       return ['Motocicleta'];
@@ -163,21 +190,21 @@ export function obterOpcoesQuantidade(tipo: ProcessoTipo): {
         isSelect: true,
         isInput: false,
         isOmitted: false,
-        options: ['Limitada (1 a 2)'],
+        options: ['1', '2'],
       };
     case 'LCM':
       return {
         isSelect: true,
         isInput: false,
         isOmitted: false,
-        options: ['Restrita (3 a 50)'],
+        options: ['Restrita (3 a 50)', 'Ilimitada (50+)'],
       };
     case 'LCM Especial':
       return {
-        isSelect: true,
-        isInput: false,
+        isSelect: false,
+        isInput: true,
         isOmitted: false,
-        options: ['Limitada (1 a 2)'],
+        options: [],
       };
     case 'Extensão':
       return {
@@ -196,4 +223,74 @@ export function obterOpcoesQuantidade(tipo: ProcessoTipo): {
     default:
       return { isSelect: false, isInput: true, isOmitted: false, options: [] };
   }
+}
+
+/**
+ * Monta o MMV unificado a partir dos campos separados: Marca, Modelo e Veículo/Versão.
+ * Se Importado, adiciona "I/" no início.
+ * Exemplo: I/SHINERAY/SBM 500 ou SHINERAY/WORKER 125
+ */
+export function montarMMV(
+  procedencia: Procedencia,
+  marca: string,
+  modelo: string,
+  veiculo: string
+): string {
+  const prefixo = procedencia === 'Importado' ? 'I/' : '';
+  const m = (marca || '').trim().toUpperCase();
+  const mod = (modelo || '').trim().toUpperCase();
+  const v = (veiculo || '').trim().toUpperCase();
+
+  if (m && mod) {
+    return `${prefixo}${m}/${mod}${v ? ' ' + v : ''}`;
+  }
+  if (m) {
+    return `${prefixo}${m}${v ? ' ' + v : ''}`;
+  }
+  if (mod) {
+    return `${prefixo}${mod}${v ? ' ' + v : ''}`;
+  }
+  return v ? `${prefixo}${v}` : '';
+}
+
+/**
+ * Decompõe um MMV existente em Marca, Modelo e Veículo/Versão.
+ */
+export function decomporMMV(
+  mmv: string,
+  procedencia?: Procedencia
+): { marca: string; modelo: string; veiculo: string } {
+  if (!mmv) return { marca: '', modelo: '', veiculo: '' };
+
+  let limpo = mmv.trim();
+  // Remove prefixo I/ se presente
+  if (limpo.startsWith('I/')) {
+    limpo = limpo.slice(2);
+  }
+
+  const partes = limpo.split('/');
+  if (partes.length >= 2) {
+    const marca = partes[0].trim();
+    const resto = partes.slice(1).join('/').trim();
+    // Separa modelo do restante do veículo/versão
+    const espacoIdx = resto.indexOf(' ');
+    if (espacoIdx > 0) {
+      const modelo = resto.substring(0, espacoIdx).trim();
+      const veiculo = resto.substring(espacoIdx + 1).trim();
+      return { marca, modelo, veiculo };
+    }
+    return { marca, modelo: resto, veiculo: '' };
+  }
+
+  // Se não tem barra
+  const espacoIdx = limpo.indexOf(' ');
+  if (espacoIdx > 0) {
+    return {
+      marca: '',
+      modelo: limpo.substring(0, espacoIdx).trim(),
+      veiculo: limpo.substring(espacoIdx + 1).trim(),
+    };
+  }
+
+  return { marca: '', modelo: limpo, veiculo: '' };
 }

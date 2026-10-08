@@ -6,6 +6,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     tipo: 'LCM',
     numeroSolicitacao: 'SL 2026.0142',
     procedencia: 'Nacional',
+    orgaoCertificador: 'IMT',
     mmv: 'SHINERAY/WORKER 125',
     numeroLicenca: 'LCM-0842/2026-IBAMA',
     quantidade: 'Restrita (3 a 50)',
@@ -15,6 +16,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     dataEnvio: '2026-01-18',
     dataEmissao: '2026-02-28',
     dataValidade: '2026-10-28', // ~35 days from Sept 23, 2026 -> PARA REVALIDAÇÃO
+    cnpj: '12482805000106',
     observacoes: [
       {
         id: 'obs-001',
@@ -37,6 +39,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     tipo: 'LCVM',
     numeroSolicitacao: 'SL 2026.0210',
     procedencia: 'Nacional',
+    orgaoCertificador: 'CETESB',
     mmv: 'SHINERAY/T20 PICKUP CABINE SIMPLES 1.0',
     numeroLicenca: 'LCVM-0114/2026-IBAMA',
     quantidade: 'Restrita (3 a 100)',
@@ -46,6 +49,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     dataEnvio: '2026-02-14',
     dataEmissao: '2026-04-02',
     dataValidade: '2026-11-12', // ~50 days from Sept 23, 2026 -> PARA REVALIDAÇÃO
+    cnpj: '12482805000106',
     observacoes: [
       {
         id: 'obs-003',
@@ -68,6 +72,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     tipo: 'LCM Especial',
     numeroSolicitacao: 'SL 2026.0315',
     procedencia: 'Importado',
+    orgaoCertificador: 'IMT',
     mmv: 'I/SHINERAY/STORM 200 PRO OFFROAD',
     numeroLicenca: '',
     quantidade: 'Limitada (1 a 2)',
@@ -77,6 +82,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     dataEnvio: '2026-08-12',
     dataEmissao: '',
     dataValidade: '',
+    cnpj: '12482805000289',
     observacoes: [
       {
         id: 'obs-005',
@@ -99,6 +105,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     tipo: 'Dispensa',
     numeroSolicitacao: 'SD 2026.0048',
     procedencia: 'Nacional',
+    orgaoCertificador: 'CETESB',
     mmv: 'SHINERAY/PROTÓTIPO URBAN EV 4000W',
     numeroLicenca: '',
     quantidade: '3 unidades experimentais para validação dinâmica em pista',
@@ -108,6 +115,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     dataEnvio: '2026-08-28',
     dataEmissao: '',
     dataValidade: '',
+    cnpj: '12482805000360',
     observacoes: [
       {
         id: 'obs-007',
@@ -124,6 +132,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     tipo: 'Extensão',
     numeroSolicitacao: 'SL 2026.0422',
     procedencia: 'Importado',
+    orgaoCertificador: 'IMT',
     mmv: 'I/SHINERAY/SHE S 3000W PLUS',
     mmvOriginal: 'I/SHINERAY/SHE S 3000W',
     numeroLicenca: 'LCM-0519/2026-EXT-IBAMA',
@@ -133,6 +142,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     dataEnvio: '2026-03-18',
     dataEmissao: '2026-04-20',
     dataValidade: '2027-04-20', // Valid until 2027 -> not expiring in 61 days
+    cnpj: '12482805000289',
     observacoes: [
       {
         id: 'obs-008',
@@ -149,6 +159,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     tipo: 'LCVM Especial',
     numeroSolicitacao: 'SL 2026.0489',
     procedencia: 'Nacional',
+    orgaoCertificador: 'CETESB',
     mmv: 'SHINERAY/E-CARGO UTILITY 1000',
     numeroLicenca: '',
     quantidade: 'Limitada (1 a 2)',
@@ -158,6 +169,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     dataEnvio: '2026-09-08',
     dataEmissao: '',
     dataValidade: '',
+    cnpj: '12482805000106',
     observacoes: [
       {
         id: 'obs-009',
@@ -174,6 +186,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     tipo: 'LCM',
     numeroSolicitacao: 'SL 2026.0511',
     procedencia: 'Nacional',
+    orgaoCertificador: 'IMT',
     mmv: 'SHINERAY/PHOENIX 50 EFI 2027',
     numeroLicenca: '',
     quantidade: 'Restrita (3 a 50)',
@@ -183,6 +196,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     dataEnvio: '',
     dataEmissao: '',
     dataValidade: '',
+    cnpj: '12482805000360',
     observacoes: [
       {
         id: 'obs-010',
@@ -199,6 +213,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     tipo: 'LCVM',
     numeroSolicitacao: 'SL 2026.0188',
     procedencia: 'Importado',
+    orgaoCertificador: 'CETESB',
     mmv: 'I/SHINERAY/TITAN EV CARGO 300',
     numeroLicenca: 'LCVM-0988/2025-IBAMA',
     quantidade: 'Ilimitada (100+)',
@@ -208,6 +223,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     dataEnvio: '2025-10-15',
     dataEmissao: '2025-11-20',
     dataValidade: '2026-11-05', // ~43 days from Sept 23, 2026 -> PARA REVALIDAÇÃO
+    cnpj: '12482805000289',
     observacoes: [
       {
         id: 'obs-011',

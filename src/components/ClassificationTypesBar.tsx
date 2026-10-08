@@ -12,6 +12,7 @@ import {
   Play,
   Pause,
   Plus,
+  Building2,
 } from 'lucide-react';
 import {
   calcularDiasRestantes,
@@ -22,6 +23,7 @@ import {
 interface ClassificationTypesBarProps {
   processos: Processo[];
   selectedTipo?: ProcessoTipo | null;
+  selectedCnpj?: string | null;
   onSelectTipo?: (tipo: ProcessoTipo | null) => void;
   onEditProcesso?: (processo: Processo) => void;
   onOpenObservations?: (processo: Processo) => void;
@@ -32,6 +34,7 @@ interface ClassificationTypesBarProps {
 export const ClassificationTypesBar: React.FC<ClassificationTypesBarProps> = ({
   processos,
   selectedTipo,
+  selectedCnpj,
   onSelectTipo,
   onEditProcesso,
   onOpenObservations,
@@ -44,7 +47,7 @@ export const ClassificationTypesBar: React.FC<ClassificationTypesBarProps> = ({
   const countLCM = useMemo(() => processos.filter((p) => p.tipo === 'LCM').length, [processos]);
   const countLCMEspecial = useMemo(() => processos.filter((p) => p.tipo === 'LCM Especial').length, [processos]);
   const countDispensa = useMemo(() => processos.filter((p) => p.tipo === 'Dispensa').length, [processos]);
-  const countExtensao = useMemo(() => processos.filter((p) => p.tipo === 'Extensão').length, [processos]);
+  const countExtensao = useMemo(() => processos.filter((p) => p.isExtensao || p.tipo === 'Extensão').length, [processos]);
 
   const typeCards = useMemo(
     () => [
@@ -106,11 +109,24 @@ export const ClassificationTypesBar: React.FC<ClassificationTypesBarProps> = ({
   const [isHovered, setIsHovered] = useState(false);
   const [cycleProgress, setCycleProgress] = useState(0);
 
+  // If active card has 0 items due to selected CNPJ, auto-focus on the first available card with count > 0
+  useEffect(() => {
+    if (typeCards[activeIndex]?.count === 0) {
+      const firstWithCount = typeCards.findIndex((c) => c.count > 0);
+      if (firstWithCount !== -1) {
+        setActiveIndex(firstWithCount);
+      }
+    }
+  }, [selectedCnpj, typeCards, activeIndex]);
+
   const activeCard = typeCards[activeIndex] || typeCards[0];
   const activeTipo = activeCard.tipo;
 
   // Processos belonging to the active type in the carousel
   const activeRelatedProcessos = useMemo(() => {
+    if (activeTipo === 'Extensão') {
+      return processos.filter((p) => p.isExtensao || p.tipo === 'Extensão');
+    }
     return processos.filter((p) => p.tipo === activeTipo);
   }, [processos, activeTipo]);
 
@@ -177,6 +193,8 @@ export const ClassificationTypesBar: React.FC<ClassificationTypesBarProps> = ({
         return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-200/80 dark:border-indigo-800/40';
       case 'A pagar':
         return 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200/80 dark:border-amber-800/40';
+      case 'Para correção':
+        return 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-300 dark:border-rose-800 font-semibold';
       case 'Em edição':
       default:
         return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700';
@@ -191,6 +209,13 @@ export const ClassificationTypesBar: React.FC<ClassificationTypesBarProps> = ({
           <h3 className="text-sm sm:text-base font-semibold text-neutral-900 dark:text-white tracking-tight">
             Classificação por Tipo de Homologação
           </h3>
+
+          {selectedCnpj && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700">
+              <Building2 className="w-3 h-3 text-[#E30613]" />
+              <span>CNPJ: {selectedCnpj}</span>
+            </span>
+          )}
 
           {selectedTipo && (
             <button
