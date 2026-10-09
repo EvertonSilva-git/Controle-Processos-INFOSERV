@@ -24,6 +24,7 @@ import {
   Play,
   Pause,
   AlertCircle,
+  Timer,
 } from 'lucide-react';
 import { RevalidationAlertBanner } from './RevalidationAlertBanner';
 import { InProgressCarousel } from './InProgressCarousel';
@@ -160,7 +161,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       {/* SECTION 1: Top Status Cards (Executive KPIs) */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div>
             <h2 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
               Visão Geral de Status
@@ -169,6 +170,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               Indicadores consolidados das homologações no Infoserv
             </p>
           </div>
+
+          <button
+            onClick={() => onNavigateToProcessos('comparacao_prazos')}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-750 text-neutral-800 dark:text-neutral-100 border border-neutral-200 dark:border-neutral-700 transition-all shadow-xs hover:shadow-sm cursor-pointer self-start sm:self-center"
+          >
+            <div className="w-2 h-2 rounded-full bg-[#E30613]" />
+            <Timer className="w-3.5 h-3.5 text-[#E30613]" />
+            <span>Médias e Prazos (Envio → Emissão)</span>
+            <ArrowRight className="w-3 h-3 text-neutral-400" />
+          </button>
         </div>
 
         {/* 5 Cards Grid */}

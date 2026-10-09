@@ -9,6 +9,7 @@ import {
 import { RevalidationAlertBanner } from './RevalidationAlertBanner';
 import { ClassificationTypesBar } from './ClassificationTypesBar';
 import { CnpjFilterCards } from './CnpjFilterCards';
+import { LeadTimeComparisonScreen } from './LeadTimeComparisonScreen';
 import {
   Search,
   MessageSquare,
@@ -29,6 +30,7 @@ import {
   Building2,
   GitBranch,
   ChevronDown,
+  Timer,
 } from 'lucide-react';
 
 interface ProcessesScreenProps {
@@ -148,6 +150,15 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
 
   const countParaRevalidacao = useMemo(
     () => processos.filter((p) => estaParaRevalidar(p.dataValidade, p.situacao)).length,
+    [processos]
+  );
+
+  const countComPrazos = useMemo(
+    () =>
+      processos.filter((p) => {
+        const calc = calcularDiasSolicitacaoAteEmissao(p.dataEnvio, p.dataEmissao);
+        return !!calc?.emitido;
+      }).length,
     [processos]
   );
 
@@ -291,6 +302,13 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
       urgent: countParaRevalidacao > 0,
     },
     {
+      id: 'comparacao_prazos' as ProcessosSubTab,
+      label: 'Médias e Prazos',
+      description: 'Envio → Emissão das licenças',
+      count: countComPrazos,
+      icon: Timer,
+    },
+    {
       id: 'todos' as ProcessosSubTab,
       label: 'Todos os Processos',
       description: 'Visão geral consolidada',
@@ -330,7 +348,7 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
 
       {/* Sub-screens Navigation Bar */}
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 rounded-xl p-1.5 shadow-xs">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-1.5">
           {subTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = currentSubTab === tab.id;
@@ -400,15 +418,24 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
         </div>
       </div>
 
-      {/* Cartões Filtros do CNPJ (Posicionados acima dos tipos de homologação) */}
-      <CnpjFilterCards
-        processos={processos}
-        selectedCnpj={cnpjFiltro}
-        onSelectCnpj={handleSelectCnpj}
-        cnpjs={cnpjs}
-        onAddCnpj={onAddCnpj}
-        onDeleteCnpj={onDeleteCnpj}
-      />
+      {/* Renderização Condicional: Subtela de Médias e Prazos vs. Lista de Processos */}
+      {currentSubTab === 'comparacao_prazos' ? (
+        <LeadTimeComparisonScreen
+          processos={processos}
+          onEditProcesso={onEditProcesso}
+          onOpenObservations={onOpenObservations}
+        />
+      ) : (
+        <>
+          {/* Cartões Filtros do CNPJ (Posicionados acima dos tipos de homologação) */}
+          <CnpjFilterCards
+            processos={processos}
+            selectedCnpj={cnpjFiltro}
+            onSelectCnpj={handleSelectCnpj}
+            cnpjs={cnpjs}
+            onAddCnpj={onAddCnpj}
+            onDeleteCnpj={onDeleteCnpj}
+          />
 
       {/* Classificação por Tipo de Homologação (LCVM, LCM, Especial, Dispensa, Extensão) - Atualiza automaticamente com base no CNPJ */}
       <ClassificationTypesBar
@@ -960,6 +987,8 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
           })
         )}
       </div>
-    </div>
+    </>
+  )}
+</div>
   );
 };

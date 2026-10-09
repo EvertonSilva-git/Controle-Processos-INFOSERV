@@ -130,6 +130,7 @@ export type ProcessosSubTab =
   | 'para_correcao'
   | 'licencas_emitidas'
   | 'para_revalidacao'
+  | 'comparacao_prazos'
   | 'todos';
 
 export type AppUser = 'Luca Andrade' | 'Everton Silva';
