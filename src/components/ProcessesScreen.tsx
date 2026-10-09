@@ -49,6 +49,7 @@ interface ProcessesScreenProps {
   onDeleteCnpj?: (rawCnpj: string) => void;
   searchTerm?: string;
   onSearchTermChange?: (term: string) => void;
+  onExportExcel?: () => void;
 }
 
 export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
@@ -67,6 +68,7 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
   onDeleteCnpj,
   searchTerm: externalSearchTerm,
   onSearchTermChange,
+  onExportExcel,
 }) => {
   const [internalSearchTerm, setInternalSearchTerm] = useState('');
   const searchTerm = externalSearchTerm !== undefined ? externalSearchTerm : internalSearchTerm;
@@ -424,6 +426,7 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
           processos={processos}
           onEditProcesso={onEditProcesso}
           onOpenObservations={onOpenObservations}
+          onExportExcel={onExportExcel}
         />
       ) : (
         <>

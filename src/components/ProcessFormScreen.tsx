@@ -17,6 +17,7 @@ import {
   obterOpcoesQuantidade,
   montarMMV,
   decomporMMV,
+  calcularDiasSolicitacaoAteEmissao,
 } from '../utils/processCalculations';
 import { 
   Check, 
@@ -25,7 +26,8 @@ import {
   AlertCircle,
   Building2,
   Plus,
-  GitBranch
+  GitBranch,
+  Timer,
 } from 'lucide-react';
 import { AddCnpjModal } from './AddCnpjModal';
 
@@ -824,6 +826,31 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                 Data em que a certidão/licença foi expedida.
               </p>
             </div>
+
+            {/* Indicador de Lead Time Regulamentar Calculado em Tempo Real */}
+            {dataEnvio && (
+              <div className="sm:col-span-2 p-3 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <Timer className="w-4 h-4 text-[#E30613]" />
+                  <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                    Lead Time de Emissão ({dataEmissao ? 'Envio → Emissão Concluída' : 'Dias Decorridos Desde o Envio'}):
+                  </span>
+                </div>
+                {(() => {
+                  const calc = calcularDiasSolicitacaoAteEmissao(dataEnvio, dataEmissao);
+                  if (!calc) return null;
+                  return (
+                    <span className={`font-mono font-bold px-2.5 py-1 rounded-lg border shadow-2xs ${
+                      calc.emitido
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                        : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                    }`}>
+                      {calc.dias} dias {calc.emitido ? '· Concluído' : '· Aguardando órgão'}
+                    </span>
+                  );
+                })()}
+              </div>
+            )}
 
             {/* Campo 13: Data de Validade da Licença */}
             <div className="space-y-1.5 sm:col-span-2">

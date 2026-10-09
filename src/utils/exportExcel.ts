@@ -282,7 +282,7 @@ export async function exportarProcessosExcel(processos: Processo[]) {
       formatarDataBR(p.dataValidade),
       statusValidade,
       diasRestantes !== null ? diasRestantes : '-',
-      prazoAnalise ? prazoAnalise.dias : '-',
+      prazoAnalise ? `${prazoAnalise.dias} dias${prazoAnalise.emitido ? '' : ' (em análise)'}` : '-',
       p.observacoes?.length || 0,
       ultimaObs?.autor || '-',
       ultimaObs?.texto || '-',
@@ -518,11 +518,102 @@ export async function exportarProcessosExcel(processos: Processo[]) {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'E2E8F0' } };
   }
 
+  // =========================================================================
+  // TABELA 3: COMPARATIVO E MÉDIAS DE TEMPO DE EMISSÃO (ENVIO → EMISSÃO)
+  // =========================================================================
+  currRow += 2;
+  const startT3 = currRow;
+  wsResumo.mergeCells(`A${startT3}:E${startT3}`);
+  applyRangeStyle(wsResumo, startT3, 1, startT3, 5, 'B91C1C', headerBorder);
+  const t3Head = wsResumo.getCell(`A${startT3}`);
+  t3Head.value = 'MÉDIAS DE TEMPO DE EMISSÃO DE LICENÇAS (ENVIO AO ÓRGÃO → EMISSÃO)';
+  t3Head.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFFFFF' } };
+  t3Head.alignment = { vertical: 'middle', horizontal: 'center' };
+
+  currRow++;
+  wsResumo.getRow(currRow).values = ['Segmento / Órgão', 'Licenças Emitidas', 'Lead Time Médio', 'Menor / Maior Prazo', 'Desvio vs Média Geral'];
+  wsResumo.getRow(currRow).height = 22;
+  applyRangeStyle(wsResumo, currRow, 1, currRow, 5, 'E2E8F0', thinBorder);
+  for (let c = 1; c <= 5; c++) {
+    const cell = wsResumo.getRow(currRow).getCell(c);
+    cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: '0F172A' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+  }
+
+  // Cálculos de Prazos
+  const processosComPrazosFinalizados = processos
+    .map((p) => {
+      const calc = calcularDiasSolicitacaoAteEmissao(p.dataEnvio, p.dataEmissao);
+      return { p, dias: calc?.emitido ? calc.dias : null };
+    })
+    .filter((i): i is { p: typeof processos[0]; dias: number } => i.dias !== null);
+
+  const mediaGlobal = processosComPrazosFinalizados.length > 0
+    ? Number((processosComPrazosFinalizados.reduce((acc, curr) => acc + curr.dias, 0) / processosComPrazosFinalizados.length).toFixed(1))
+    : 0;
+
+  const gruposLeadTime = [
+    {
+      nome: 'Média Global (Todas as Licenças)',
+      itens: processosComPrazosFinalizados,
+    },
+    {
+      nome: 'Órgão IMT (Instituto Mauá de Tecnologia)',
+      itens: processosComPrazosFinalizados.filter((x) => (x.p.orgaoCertificador || 'IMT') === 'IMT'),
+    },
+    {
+      nome: 'Órgão CETESB (Companhia Ambiental do Estado de SP)',
+      itens: processosComPrazosFinalizados.filter((x) => x.p.orgaoCertificador === 'CETESB'),
+    },
+    {
+      nome: 'Procedência Nacional',
+      itens: processosComPrazosFinalizados.filter((x) => x.p.procedencia === 'Nacional'),
+    },
+    {
+      nome: 'Procedência Importado',
+      itens: processosComPrazosFinalizados.filter((x) => x.p.procedencia === 'Importado'),
+    },
+  ];
+
+  currRow++;
+  gruposLeadTime.forEach((grp) => {
+    const r = wsResumo.getRow(currRow);
+    r.height = 22;
+    const qtd = grp.itens.length;
+    let mediaStr = '-';
+    let minMaxStr = '-';
+    let desvioStr = '-';
+
+    if (qtd > 0) {
+      const diasArr = grp.itens.map((x) => x.dias);
+      const soma = diasArr.reduce((a, b) => a + b, 0);
+      const media = Number((soma / qtd).toFixed(1));
+      const min = Math.min(...diasArr);
+      const max = Math.max(...diasArr);
+      const desvio = Number((media - mediaGlobal).toFixed(1));
+
+      mediaStr = `${media} dias`;
+      minMaxStr = `Mín: ${min}d | Máx: ${max}d`;
+      desvioStr = desvio === 0 ? 'Na média' : desvio < 0 ? `↓ ${Math.abs(desvio)}d mais rápido` : `↑ +${desvio}d acima`;
+    }
+
+    r.values = [grp.nome, qtd > 0 ? `${qtd} licença(s)` : '0 licenças', mediaStr, minMaxStr, desvioStr];
+    for (let c = 1; c <= 5; c++) {
+      const cell = r.getCell(c);
+      cell.border = thinBorder;
+      cell.font = { name: 'Segoe UI', size: 9.5 };
+      cell.alignment = { vertical: 'middle', horizontal: c === 1 ? 'left' : 'center' };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: currRow % 2 === 0 ? 'F8FAFC' : 'FFFFFF' } };
+    }
+    currRow++;
+  });
+
   // Larguras da aba de resumo
-  wsResumo.getColumn(1).width = 32;
-  wsResumo.getColumn(2).width = 16;
-  wsResumo.getColumn(3).width = 16;
+  wsResumo.getColumn(1).width = 44;
+  wsResumo.getColumn(2).width = 20;
+  wsResumo.getColumn(3).width = 20;
   wsResumo.getColumn(4).width = 24;
+  wsResumo.getColumn(5).width = 24;
 
   // =========================================================================
   // ABA 3: HISTÓRICO COMPLETO DE ANOTAÇÕES E DESPACHOS TÉCNICOS
@@ -621,142 +712,6 @@ export async function exportarProcessosExcel(processos: Processo[]) {
   wsObs.autoFilter = {
     from: { row: 3, column: 1 },
     to: { row: Math.max(4, obsRowIdx - 1), column: obsCols.length },
-  };
-
-  // =========================================================================
-  // ABA 4: COMPARATIVO E MÉDIAS DE TEMPO DE EMISSÃO (ENVIO À EMISSÃO)
-  // =========================================================================
-  const wsPrazos = wb.addWorksheet('Médias e Prazos de Emissão', {
-    views: [{ state: 'frozen', xSplit: 0, ySplit: 4, showGridLines: true }],
-  });
-
-  // Título da aba de prazos
-  wsPrazos.mergeCells('A1:H1');
-  applyRangeStyle(wsPrazos, 1, 1, 1, 8, '991B1B', mediumBorder);
-  const prazosTitle = wsPrazos.getCell('A1');
-  prazosTitle.value = 'SHINERAY DO BRASIL · RELATÓRIO COMPARATIVO DE TEMPO DE EMISSÃO DE LICENÇAS';
-  prazosTitle.font = { name: 'Segoe UI', size: 12, bold: true, color: { argb: 'FFFFFF' } };
-  prazosTitle.alignment = { vertical: 'middle', horizontal: 'center' };
-  wsPrazos.getRow(1).height = 32;
-
-  // Subtítulo
-  wsPrazos.mergeCells('A2:H2');
-  applyRangeStyle(wsPrazos, 2, 1, 2, 8, '1E293B', thinBorder);
-  const prazosSub = wsPrazos.getCell('A2');
-  prazosSub.value = 'Métricas calculadas do protocolo com o órgão técnico (IMT / CETESB) até a emissão oficial da licença pelo IBAMA';
-  prazosSub.font = { name: 'Segoe UI', size: 9.5, italic: true, color: { argb: 'F8FAFC' } };
-  prazosSub.alignment = { vertical: 'middle', horizontal: 'center' };
-  wsPrazos.getRow(2).height = 20;
-
-  wsPrazos.getRow(3).height = 8;
-
-  // Cabeçalho da tabela de prazos detalhados
-  const prazosCols = [
-    { header: 'Nº Solicitação', width: 18, align: 'center' },
-    { header: 'MMV do Veículo', width: 34, align: 'left' },
-    { header: 'Órgão Técnico', width: 16, align: 'center' },
-    { header: 'Tipo Processo', width: 18, align: 'center' },
-    { header: 'Data Envio', width: 15, align: 'center' },
-    { header: 'Data Emissão', width: 15, align: 'center' },
-    { header: 'Tempo de Emissão (Dias)', width: 24, align: 'center' },
-    { header: 'Situação / Nº Licença', width: 28, align: 'center' },
-  ];
-
-  const prazosHeaderRow = wsPrazos.getRow(4);
-  prazosHeaderRow.height = 28;
-
-  prazosCols.forEach((col, idx) => {
-    const colNum = idx + 1;
-    const cell = prazosHeaderRow.getCell(colNum);
-    cell.value = col.header;
-    cell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFFFFF' } };
-    cell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'B91C1C' },
-    };
-    cell.border = headerBorder;
-    cell.alignment = { vertical: 'middle', horizontal: 'center' };
-    wsPrazos.getColumn(colNum).width = col.width;
-  });
-
-  let prazosRowIdx = 5;
-  const emitidosPrazos = processos.filter((p) => p.dataEnvio && p.dataEmissao);
-  const somaPrazos = emitidosPrazos.reduce((acc, p) => {
-    const calc = calcularDiasSolicitacaoAteEmissao(p.dataEnvio, p.dataEmissao);
-    return acc + (calc ? calc.dias : 0);
-  }, 0);
-  const mediaDiasGeral = emitidosPrazos.length > 0 ? Math.round(somaPrazos / emitidosPrazos.length) : 0;
-
-  emitidosPrazos.forEach((p) => {
-    const calc = calcularDiasSolicitacaoAteEmissao(p.dataEnvio, p.dataEmissao);
-    const dias = calc ? calc.dias : 0;
-    const r = wsPrazos.getRow(prazosRowIdx);
-    r.height = 24;
-
-    const rowValues = [
-      p.numeroSolicitacao,
-      p.mmv,
-      p.orgaoCertificador || 'IMT',
-      p.tipo,
-      formatarDataBR(p.dataEnvio),
-      formatarDataBR(p.dataEmissao),
-      dias,
-      p.numeroLicenca || p.situacao,
-    ];
-
-    rowValues.forEach((val, valIdx) => {
-      const c = r.getCell(valIdx + 1);
-      c.value = val;
-      c.font = { name: 'Segoe UI', size: 9.5, color: { argb: '1E293B' } };
-      c.border = thinBorder;
-      c.alignment = {
-        vertical: 'middle',
-        horizontal: prazosCols[valIdx].align as any,
-      };
-
-      c.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: prazosRowIdx % 2 === 0 ? 'F8FAFC' : 'FFFFFF' },
-      };
-
-      if (valIdx === 0) {
-        c.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: '991B1B' } };
-      }
-
-      if (valIdx === 6) {
-        c.font = { name: 'Segoe UI', size: 10, bold: true };
-        if (dias <= mediaDiasGeral) {
-          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'DCFCE7' } };
-          c.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: '166534' } };
-        } else {
-          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE4E6' } };
-          c.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: '9F1239' } };
-        }
-      }
-    });
-
-    prazosRowIdx++;
-  });
-
-  // Linha de Média Geral na Tabela de Prazos
-  const prazosTotRow = wsPrazos.getRow(prazosRowIdx);
-  prazosTotRow.height = 26;
-  for (let c = 1; c <= prazosCols.length; c++) {
-    const cell = prazosTotRow.getCell(c);
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'E2E8F0' } };
-    cell.border = totalBorder;
-    cell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: '0F172A' } };
-    cell.alignment = { vertical: 'middle', horizontal: 'center' };
-  }
-  prazosTotRow.getCell(1).value = 'MÉDIA GERAL';
-  prazosTotRow.getCell(2).value = `${emitidosPrazos.length} processos avaliados`;
-  prazosTotRow.getCell(7).value = `${mediaDiasGeral} dias`;
-
-  wsPrazos.autoFilter = {
-    from: { row: 4, column: 1 },
-    to: { row: prazosRowIdx, column: prazosCols.length },
   };
 
   // Gerar o buffer binário XLSX e acionar download direto

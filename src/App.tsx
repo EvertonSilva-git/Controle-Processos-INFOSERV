@@ -439,6 +439,9 @@ export default function App() {
           if (tab === 'home') {
             setTipoFiltro(null);
           }
+          if (tab === 'processos' && searchQuery) {
+            setCurrentSubTab('todos');
+          }
         }}
         totalProcessos={processos.length}
         totalRevalidar={totalRevalidar}
@@ -449,7 +452,11 @@ export default function App() {
         processos={processos}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        onSelectProcesso={(p) => setObservacaoModalProcesso(p)}
+        onSelectProcesso={(p) => {
+          setCurrentTab('processos');
+          setCurrentSubTab('todos');
+          setObservacaoModalProcesso(p);
+        }}
         currentUser={currentUser}
         onSwitchUser={() => {
           setCurrentUser(null);
@@ -503,6 +510,7 @@ export default function App() {
             onDeleteCnpj={handleDeleteCnpj}
             searchTerm={searchQuery}
             onSearchTermChange={setSearchQuery}
+            onExportExcel={handleExportExcel}
           />
         )}
       </main>

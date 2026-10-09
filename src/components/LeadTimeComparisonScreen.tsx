@@ -26,23 +26,29 @@ import {
   CheckCircle2,
   Scale,
   Sparkles,
+  FileSpreadsheet,
+  ArrowRight,
+  ExternalLink,
 } from 'lucide-react';
 
 interface LeadTimeComparisonScreenProps {
   processos: Processo[];
   onEditProcesso?: (processo: Processo) => void;
   onOpenObservations?: (processo: Processo) => void;
+  onExportExcel?: () => void;
 }
 
 export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> = ({
   processos,
   onEditProcesso,
   onOpenObservations,
+  onExportExcel,
 }) => {
   // Filtros internos da subtela
   const [filtroOrgao, setFiltroOrgao] = useState<string>('todos');
   const [filtroTipo, setFiltroTipo] = useState<string>('todos');
   const [filtroProcedencia, setFiltroProcedencia] = useState<string>('todos');
+  const [filtroCnpj, setFiltroCnpj] = useState<string>('todos');
   const [ordenacao, setOrdenacao] = useState<'rapidos' | 'demorados' | 'recentes' | 'solicitacao'>('rapidos');
   const [termoBusca, setTermoBusca] = useState<string>('');
 
@@ -61,6 +67,17 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
       .filter((item): item is { processo: Processo; dias: number; dataEnvio: string; dataEmissao: string } => {
         return item.dias !== null && !!item.dataEnvio && !!item.dataEmissao;
       });
+  }, [processos]);
+
+  // Lista única de CNPJs presentes nos processos com prazo
+  const uniqueCnpjs = useMemo(() => {
+    const set = new Set<string>();
+    processos.forEach((p) => {
+      if (p.cnpj) {
+        set.add(p.cnpj.replace(/\D/g, ''));
+      }
+    });
+    return Array.from(set);
   }, [processos]);
 
   // 2. Processos em trâmite com envio registrado (Envio -> Hoje aguardando emissão)
@@ -230,6 +247,12 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
           return false;
         }
 
+        // Filtro CNPJ
+        if (filtroCnpj !== 'todos') {
+          const pClean = (item.processo.cnpj || '').replace(/\D/g, '');
+          if (pClean !== filtroCnpj) return false;
+        }
+
         // Busca por texto
         if (termoBusca.trim()) {
           const q = termoBusca.toLowerCase().trim();
@@ -237,7 +260,8 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
           const matchMMV = item.processo.mmv.toLowerCase().includes(q);
           const matchLic = item.processo.numeroLicenca?.toLowerCase().includes(q) || false;
           const matchOrg = item.processo.orgaoCertificador?.toLowerCase().includes(q) || false;
-          if (!matchSol && !matchMMV && !matchLic && !matchOrg) return false;
+          const matchCnpj = item.processo.cnpj ? formatarCNPJ(item.processo.cnpj).includes(q) || item.processo.cnpj.includes(q) : false;
+          if (!matchSol && !matchMMV && !matchLic && !matchOrg && !matchCnpj) return false;
         }
 
         return true;
@@ -250,14 +274,14 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
           return b.dias - a.dias;
         }
         if (ordenacao === 'recentes') {
-          return new Date(b.dataEmissao).getTime() - new Date(a.dataEmissao).getTime();
+          return b.dataEmissao.localeCompare(a.dataEmissao);
         }
         if (ordenacao === 'solicitacao') {
           return a.processo.numeroSolicitacao.localeCompare(b.processo.numeroSolicitacao);
         }
         return 0;
       });
-  }, [processosComPrazo, filtroOrgao, filtroTipo, filtroProcedencia, ordenacao, termoBusca]);
+  }, [processosComPrazo, filtroOrgao, filtroTipo, filtroProcedencia, filtroCnpj, ordenacao, termoBusca]);
 
   // Maior tempo entre todos para calcular a barra relativa
   const maxDiasGeral = Math.max(statsGerais.max || 1, 60);
@@ -266,17 +290,17 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
     <div className="space-y-6">
       {/* Header do Módulo de Prazos */}
       <div className="bg-gradient-to-r from-neutral-900 via-neutral-850 to-neutral-900 dark:from-neutral-900 dark:via-neutral-950 dark:to-neutral-900 text-white rounded-2xl p-6 sm:p-7 shadow-lg border border-neutral-800 relative overflow-hidden">
-        {/* Glow de fundo */}
+        {/* Glow de fundo sutil */}
         <div className="absolute right-0 top-0 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
         
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-red-500/20 text-red-300 text-xs font-bold border border-red-500/30">
               <Timer className="w-3.5 h-3.5 text-[#E30613]" />
-              <span>Lead Time Regulamentar · Envio → Emissão</span>
+              <span>Lead Time Regulamentar · Envio ao Órgão → Emissão Oficial</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-              Médias e Comparativo de Prazos de Emissão
+              Médias e Comparativo de Tempo de Emissão
             </h2>
             <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed">
               Monitore a duração real que os órgãos técnicos (CETESB e IMT / IBAMA) levam para deferir e emitir licenças a partir do protocolo formal da documentação técnica.
@@ -297,6 +321,18 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
               </div>
               <div className="text-[10px] text-red-300">tempo médio total</div>
             </div>
+
+            {onExportExcel && (
+              <button
+                type="button"
+                onClick={onExportExcel}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                title="Exportar planilha Excel completa com os dados de prazos"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span className="hidden sm:inline">Exportar Excel</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -349,10 +385,10 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
           </div>
           <div className="mt-2.5">
             <div className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
-              {statsGerais.min} <span className="text-sm font-semibold text-neutral-500">dias</span>
+              {statsGerais.total > 0 ? statsGerais.min : '-'} <span className="text-sm font-semibold text-neutral-500">{statsGerais.total > 0 ? 'dias' : ''}</span>
             </div>
             <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 truncate" title={statsGerais.maisRapido?.processo.mmv}>
-              {statsGerais.maisRapido ? `${statsGerais.maisRapido.processo.numeroSolicitacao} · ${statsGerais.maisRapido.processo.mmv}` : '-'}
+              {statsGerais.maisRapido ? `${statsGerais.maisRapido.processo.numeroSolicitacao} · ${statsGerais.maisRapido.processo.mmv}` : 'Nenhum processo'}
             </div>
           </div>
         </div>
@@ -367,10 +403,10 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
           </div>
           <div className="mt-2.5">
             <div className="text-2xl sm:text-3xl font-extrabold text-amber-600 dark:text-amber-400 font-mono">
-              {statsGerais.max} <span className="text-sm font-semibold text-neutral-500">dias</span>
+              {statsGerais.total > 0 ? statsGerais.max : '-'} <span className="text-sm font-semibold text-neutral-500">{statsGerais.total > 0 ? 'dias' : ''}</span>
             </div>
             <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 truncate" title={statsGerais.maisDemorado?.processo.mmv}>
-              {statsGerais.maisDemorado ? `${statsGerais.maisDemorado.processo.numeroSolicitacao} · ${statsGerais.maisDemorado.processo.mmv}` : '-'}
+              {statsGerais.maisDemorado ? `${statsGerais.maisDemorado.processo.numeroSolicitacao} · ${statsGerais.maisDemorado.processo.mmv}` : 'Nenhum processo'}
             </div>
           </div>
         </div>
@@ -397,7 +433,7 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
 
             <div className="space-y-4">
               {statsPorOrgao.map((item) => {
-                const percentual = statsGerais.media > 0 ? (item.media / maxDiasGeral) * 100 : 0;
+                const percentual = statsGerais.media > 0 && item.total > 0 ? (item.media / maxDiasGeral) * 100 : 0;
                 const isMaisRapido = item.diferencaMediaGeral < 0;
 
                 return (
@@ -416,9 +452,13 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
                       </div>
 
                       <div className="text-right">
-                        <span className="text-lg font-black font-mono text-neutral-900 dark:text-white">
-                          {item.media} <span className="text-xs font-normal text-neutral-500">dias</span>
-                        </span>
+                        {item.total > 0 ? (
+                          <span className="text-lg font-black font-mono text-neutral-900 dark:text-white">
+                            {item.media} <span className="text-xs font-normal text-neutral-500">dias</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-neutral-400">Sem dados</span>
+                        )}
                       </div>
                     </div>
 
@@ -428,21 +468,27 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
                         className={`h-full rounded-full transition-all duration-500 ${
                           item.orgao === 'IMT' ? 'bg-blue-600' : 'bg-emerald-600'
                         }`}
-                        style={{ width: `${Math.min(100, Math.max(10, percentual))}%` }}
+                        style={{ width: `${item.total > 0 ? Math.min(100, Math.max(10, percentual)) : 0}%` }}
                       />
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400 pt-0.5">
-                      <span>Mín: {item.min}d · Máx: {item.max}d</span>
-                      <span
-                        className={`font-semibold px-2 py-0.5 rounded-full ${
-                          isMaisRapido
-                            ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800'
-                            : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800'
-                        }`}
-                      >
-                        {isMaisRapido ? `↓ ${Math.abs(item.diferencaMediaGeral)}d abaixo da média` : `↑ +${item.diferencaMediaGeral}d da média`}
-                      </span>
+                      <span>{item.total > 0 ? `Mín: ${item.min}d · Máx: ${item.max}d` : 'Aguardando conclusões'}</span>
+                      {item.total > 0 ? (
+                        <span
+                          className={`font-semibold px-2 py-0.5 rounded-full ${
+                            isMaisRapido
+                              ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800'
+                              : item.diferencaMediaGeral === 0
+                              ? 'text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800'
+                              : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800'
+                          }`}
+                        >
+                          {isMaisRapido ? `↓ ${Math.abs(item.diferencaMediaGeral)}d abaixo da média` : item.diferencaMediaGeral === 0 ? 'Na média' : `↑ +${item.diferencaMediaGeral}d da média`}
+                        </span>
+                      ) : (
+                        <span className="text-neutral-400">-</span>
+                      )}
                     </div>
                   </div>
                 );
@@ -451,7 +497,7 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
           </div>
 
           <div className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-400 flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
             <span>Baseado em processos com data de envio e emissão registradas.</span>
           </div>
         </div>
@@ -474,40 +520,46 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
             </div>
 
             <div className="space-y-3">
-              {statsPorTipo.map((item) => {
-                const barWidth = statsGerais.max > 0 ? (item.media / statsGerais.max) * 100 : 0;
-                const isAbaixo = item.diferenca <= 0;
+              {statsPorTipo.length === 0 ? (
+                <div className="text-center py-6 text-xs text-neutral-400">
+                  Nenhum processo concluído para exibição por tipo.
+                </div>
+              ) : (
+                statsPorTipo.map((item) => {
+                  const barWidth = statsGerais.max > 0 ? (item.media / statsGerais.max) * 100 : 0;
+                  const isAbaixo = item.diferenca <= 0;
 
-                return (
-                  <div key={item.tipo} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-neutral-800 dark:text-neutral-200">
-                          {item.tipo}
-                        </span>
-                        <span className="text-[11px] text-neutral-400">
-                          ({item.total})
-                        </span>
+                  return (
+                    <div key={item.tipo} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-neutral-800 dark:text-neutral-200">
+                            {item.tipo}
+                          </span>
+                          <span className="text-[11px] text-neutral-400">
+                            ({item.total})
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 font-mono">
+                          <span className="font-bold text-neutral-900 dark:text-white">
+                            {item.media} dias
+                          </span>
+                          <span className={`text-[10px] font-semibold ${isAbaixo ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                            {isAbaixo ? `(${item.diferenca}d)` : `(+${item.diferenca}d)`}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 font-mono">
-                        <span className="font-bold text-neutral-900 dark:text-white">
-                          {item.media} dias
-                        </span>
-                        <span className={`text-[10px] font-semibold ${isAbaixo ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                          {isAbaixo ? `(${item.diferenca}d)` : `(+${item.diferenca}d)`}
-                        </span>
+
+                      <div className="w-full bg-neutral-100 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#E30613] rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, Math.max(12, barWidth))}%` }}
+                        />
                       </div>
                     </div>
-
-                    <div className="w-full bg-neutral-100 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[#E30613] rounded-full transition-all duration-500"
-                        style={{ width: `${Math.min(100, Math.max(12, barWidth))}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -535,7 +587,7 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
 
             <div className="space-y-4">
               {statsPorProcedencia.map((item) => {
-                const percentual = statsGerais.media > 0 ? (item.media / maxDiasGeral) * 100 : 0;
+                const percentual = statsGerais.media > 0 && item.total > 0 ? (item.media / maxDiasGeral) * 100 : 0;
 
                 return (
                   <div
@@ -552,12 +604,18 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
                         </div>
                       </div>
                       <div className="text-right font-mono">
-                        <div className="text-base font-bold text-neutral-900 dark:text-white">
-                          {item.media} dias
-                        </div>
-                        <div className="text-[11px] text-neutral-400">
-                          Mín: {item.min}d · Máx: {item.max}d
-                        </div>
+                        {item.total > 0 ? (
+                          <>
+                            <div className="text-base font-bold text-neutral-900 dark:text-white">
+                              {item.media} dias
+                            </div>
+                            <div className="text-[11px] text-neutral-400">
+                              Mín: {item.min}d · Máx: {item.max}d
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-xs text-neutral-400">Sem emissões</div>
+                        )}
                       </div>
                     </div>
 
@@ -566,7 +624,7 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
                         className={`h-full rounded-full transition-all duration-500 ${
                           item.procedencia === 'Nacional' ? 'bg-emerald-500' : 'bg-indigo-500'
                         }`}
-                        style={{ width: `${Math.min(100, Math.max(10, percentual))}%` }}
+                        style={{ width: `${item.total > 0 ? Math.min(100, Math.max(10, percentual)) : 0}%` }}
                       />
                     </div>
                   </div>
@@ -629,10 +687,17 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
 
                     <div className="text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
                       <span>Enviado em:</span>
-                      <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                      <span className="font-medium text-neutral-700 dark:text-neutral-300 font-mono">
                         {formatarDataBR(proc.dataEnvio)}
                       </span>
                     </div>
+
+                    {proc.cnpj && (
+                      <div className="text-[10px] text-neutral-400 flex items-center gap-1 font-mono">
+                        <Building2 className="w-3 h-3 text-neutral-400 shrink-0" />
+                        <span>{formatarCNPJ(proc.cnpj)}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-3 pt-2.5 border-t border-neutral-200/70 dark:border-neutral-750 flex items-center justify-between">
@@ -643,15 +708,27 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
                       </div>
                     </div>
 
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        isAcimaDaMedia
-                          ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
-                          : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                      }`}
-                    >
-                      {isAcimaDaMedia ? `+${(item.diasDecorridos - statsGerais.media).toFixed(0)}d acima da média` : 'Dentro da média'}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                          isAcimaDaMedia
+                            ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                            : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                        }`}
+                      >
+                        {isAcimaDaMedia ? `+${(item.diasDecorridos - statsGerais.media).toFixed(0)}d acima` : 'Dentro da média'}
+                      </span>
+                      {onOpenObservations && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenObservations(proc)}
+                          className="p-1 text-neutral-400 hover:text-neutral-800 dark:hover:text-white rounded hover:bg-neutral-200/60 dark:hover:bg-neutral-700 transition-colors"
+                          title="Ver anotações do processo"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -684,7 +761,7 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
                 type="text"
                 value={termoBusca}
                 onChange={(e) => setTermoBusca(e.target.value)}
-                placeholder="Filtrar por MMV, SL..."
+                placeholder="Filtrar por MMV, SL, CNPJ..."
                 className="w-full pl-8 pr-3 py-1.5 text-xs bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400"
               />
             </div>
@@ -693,7 +770,7 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
             <select
               value={filtroOrgao}
               onChange={(e) => setFiltroOrgao(e.target.value)}
-              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none"
+              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none cursor-pointer"
             >
               <option value="todos">Todos os Órgãos</option>
               <option value="IMT">IMT</option>
@@ -704,7 +781,7 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
             <select
               value={filtroTipo}
               onChange={(e) => setFiltroTipo(e.target.value)}
-              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none"
+              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none cursor-pointer"
             >
               <option value="todos">Todos os Tipos</option>
               <option value="LCVM">LCVM</option>
@@ -715,11 +792,38 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
               <option value="Extensão">Extensão</option>
             </select>
 
+            {/* Filtro Procedência */}
+            <select
+              value={filtroProcedencia}
+              onChange={(e) => setFiltroProcedencia(e.target.value)}
+              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none cursor-pointer"
+            >
+              <option value="todos">Toda Procedência</option>
+              <option value="Nacional">Nacional</option>
+              <option value="Importado">Importado</option>
+            </select>
+
+            {/* Filtro CNPJ */}
+            {uniqueCnpjs.length > 0 && (
+              <select
+                value={filtroCnpj}
+                onChange={(e) => setFiltroCnpj(e.target.value)}
+                className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none cursor-pointer"
+              >
+                <option value="todos">Todos os CNPJs</option>
+                {uniqueCnpjs.map((c) => (
+                  <option key={c} value={c}>
+                    {formatarCNPJ(c)}
+                  </option>
+                ))}
+              </select>
+            )}
+
             {/* Ordenação */}
             <select
               value={ordenacao}
               onChange={(e) => setOrdenacao(e.target.value as any)}
-              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none"
+              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none cursor-pointer"
             >
               <option value="rapidos">Mais Rápidos Primeiro</option>
               <option value="demorados">Mais Demorados Primeiro</option>
@@ -737,6 +841,7 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
                 <th className="py-3 px-3.5">Solicitação / MMV</th>
                 <th className="py-3 px-3">Tipo</th>
                 <th className="py-3 px-3">Órgão</th>
+                <th className="py-3 px-3">CNPJ Unidade</th>
                 <th className="py-3 px-3">Procedência</th>
                 <th className="py-3 px-3 text-center">Data Envio</th>
                 <th className="py-3 px-3 text-center">Data Emissão</th>
@@ -749,12 +854,12 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
             <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 bg-white dark:bg-neutral-900">
               {processosFiltradosETabelados.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center text-neutral-400">
+                  <td colSpan={11} className="py-8 text-center text-neutral-400">
                     Nenhum processo localizado com os filtros selecionados.
                   </td>
                 </tr>
               ) : (
-                processosFiltradosETabelados.map((item, idx) => {
+                processosFiltradosETabelados.map((item) => {
                   const proc = item.processo;
                   const diferenca = Number((item.dias - statsGerais.media).toFixed(1));
                   const isMaisRapido = diferenca < 0;
@@ -789,6 +894,11 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
                         <span className="font-mono font-bold text-neutral-800 dark:text-neutral-200">
                           {proc.orgaoCertificador || 'IMT'}
                         </span>
+                      </td>
+
+                      {/* CNPJ */}
+                      <td className="py-3 px-3 whitespace-nowrap font-mono text-neutral-600 dark:text-neutral-400 text-[11px]">
+                        {proc.cnpj ? formatarCNPJ(proc.cnpj) : '-'}
                       </td>
 
                       {/* Procedência */}
@@ -854,7 +964,7 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
                             <button
                               type="button"
                               onClick={() => onOpenObservations(proc)}
-                              className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                              className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
                               title="Ver anotações"
                             >
                               <MessageSquare className="w-3.5 h-3.5" />
@@ -864,7 +974,7 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
                             <button
                               type="button"
                               onClick={() => onEditProcesso(proc)}
-                              className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                              className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
                               title="Editar processo"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
