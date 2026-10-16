@@ -31,6 +31,8 @@ import {
   GitBranch,
   ChevronDown,
   Timer,
+  Eye,
+  ArrowRight,
 } from 'lucide-react';
 
 interface ProcessesScreenProps {
@@ -50,6 +52,8 @@ interface ProcessesScreenProps {
   searchTerm?: string;
   onSearchTermChange?: (term: string) => void;
   onExportExcel?: () => void;
+  currentUser?: string | null;
+  isVisitante?: boolean;
 }
 
 export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
@@ -69,6 +73,8 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
   searchTerm: externalSearchTerm,
   onSearchTermChange,
   onExportExcel,
+  currentUser,
+  isVisitante = false,
 }) => {
   const [internalSearchTerm, setInternalSearchTerm] = useState('');
   const searchTerm = externalSearchTerm !== undefined ? externalSearchTerm : internalSearchTerm;
@@ -78,9 +84,60 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
   const [cnpjFiltro, setCnpjFiltro] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'recentes' | 'validade' | 'solicitacao'>('recentes');
   const [expandedExtensoes, setExpandedExtensoes] = useState<Record<string, boolean>>({});
+  const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
 
   const toggleExpandedExtensoes = (id: string) => {
     setExpandedExtensoes((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleJumpToExtensao = (extensaoId: string) => {
+    const target = processos.find((p) => p.id === extensaoId);
+    if (!target) return;
+
+    // Se houver busca restringindo o target, limpa a busca
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      const matches =
+        target.numeroSolicitacao.toLowerCase().includes(q) ||
+        target.mmv.toLowerCase().includes(q) ||
+        (target.numeroLicenca && target.numeroLicenca.toLowerCase().includes(q));
+      if (!matches && onSearchTermChange) {
+        onSearchTermChange('');
+      }
+    }
+
+    // Se filtro de tipo excluir o target
+    if (tipoFiltro && tipoFiltro !== target.tipo && !target.isExtensao) {
+      if (onTipoFiltroChange) {
+        onTipoFiltroChange(null);
+      }
+    }
+
+    // Se filtro de CNPJ for diferente do processo alvo
+    if (cnpjFiltro && target.cnpj && target.cnpj !== cnpjFiltro) {
+      setCnpjFiltro(null);
+    }
+
+    // Muda para aba 'todos' para assegurar que o cartão está visível
+    if (currentSubTab !== 'todos') {
+      onSubTabChange('todos');
+    }
+
+    // Destaca visualmente o cartão
+    setHighlightedCardId(extensaoId);
+
+    // Rola a tela até o cartão com suavidade
+    setTimeout(() => {
+      const el = document.getElementById(`processo-card-${extensaoId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 120);
+
+    // Remove o destaque após 3,5 segundos
+    setTimeout(() => {
+      setHighlightedCardId((prev) => (prev === extensaoId ? null : prev));
+    }, 3500);
   };
 
   // Processos filtrados pelo CNPJ selecionado (para alimentar dinamicamente a barra de tipos)
@@ -430,6 +487,26 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
         />
       ) : (
         <>
+          {/* Banner de Aviso de Modo Visitante */}
+          {isVisitante && (
+            <div className="p-3.5 sm:p-4 bg-purple-50/90 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 rounded-xl text-purple-950 dark:text-purple-100 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-2xs">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-purple-200/80 dark:bg-purple-900/80 text-purple-800 dark:text-purple-200 font-bold shrink-0">
+                  <Eye className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-bold">Modo Visitante (Apenas Consulta):</span>{' '}
+                  <span className="text-purple-800 dark:text-purple-300">
+                    Você pode visualizar o catálogo completo, prazos regulatórios e observações. Operações de criação, edição e exclusão estão restritas.
+                  </span>
+                </div>
+              </div>
+              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-purple-200/70 dark:bg-purple-800/80 text-purple-900 dark:text-purple-100 font-bold shrink-0">
+                Somente Leitura
+              </span>
+            </div>
+          )}
+
           {/* Cartões Filtros do CNPJ (Posicionados acima dos tipos de homologação) */}
           <CnpjFilterCards
             processos={processos}
@@ -438,6 +515,7 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
             cnpjs={cnpjs}
             onAddCnpj={onAddCnpj}
             onDeleteCnpj={onDeleteCnpj}
+            isVisitante={isVisitante}
           />
 
       {/* Classificação por Tipo de Homologação (LCVM, LCM, Especial, Dispensa, Extensão) - Atualiza automaticamente com base no CNPJ */}
@@ -629,8 +707,11 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
             return (
               <div
                 key={processo.id}
-                className={`rounded-xl shadow-xs transition-colors overflow-hidden border-2 ${
-                  isProcessoExtensao
+                id={`processo-card-${processo.id}`}
+                className={`rounded-xl shadow-xs transition-all duration-300 overflow-hidden border-2 ${
+                  highlightedCardId === processo.id
+                    ? 'ring-4 ring-emerald-500 ring-offset-2 dark:ring-offset-neutral-900 border-emerald-500 shadow-xl scale-[1.008]'
+                    : isProcessoExtensao
                     ? 'bg-emerald-50/20 dark:bg-emerald-950/25 border-emerald-500/80 dark:border-emerald-500/60 ring-1 ring-emerald-400/20'
                     : 'bg-white dark:bg-neutral-900 border-neutral-200/90 dark:border-neutral-800'
                 }`}
@@ -658,6 +739,13 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                       <span className="text-xs font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/80 px-2 py-0.5 rounded border border-emerald-300 dark:border-emerald-700 inline-flex items-center gap-1 shadow-2xs">
                         <GitBranch className="w-3 h-3 text-emerald-600 dark:text-emerald-300" />
                         <span>Extensão</span>
+                      </span>
+                    )}
+                    {/* Badge se for a extensão selecionada via lista suspensa */}
+                    {highlightedCardId === processo.id && (
+                      <span className="text-xs font-black text-emerald-900 dark:text-emerald-100 bg-emerald-300 dark:bg-emerald-800/90 px-2 py-0.5 rounded-full border border-emerald-400 animate-pulse inline-flex items-center gap-1 shadow-xs">
+                        <GitBranch className="w-3 h-3 text-emerald-700 dark:text-emerald-300" />
+                        <span>Extensão Selecionada</span>
                       </span>
                     )}
                     {/* Órgão Certificador: IMT ou CETESB */}
@@ -718,21 +806,51 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
 
                   {/* Banner de extensões filhas se o processo original gerou extensões */}
                   {extensoesDesteProcesso.length > 0 && (
-                    <div className="p-3 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-700/80 rounded-lg space-y-2">
-                      <div className="flex items-center justify-between">
+                    <div className="p-3.5 bg-emerald-50/90 dark:bg-emerald-950/35 border border-emerald-300 dark:border-emerald-700/80 rounded-xl space-y-3 shadow-2xs">
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
                         <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 dark:text-emerald-200">
-                          <GitBranch className="w-4 h-4 text-emerald-600" />
-                          <span>Este processo possui {extensoesDesteProcesso.length} extensão(ões) gerada(s) a partir dele</span>
+                          <GitBranch className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                          <span>Extensões vinculadas ({extensoesDesteProcesso.length})</span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => toggleExpandedExtensoes(processo.id)}
-                          className="text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-100 inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/60 dark:hover:bg-emerald-800 transition-colors cursor-pointer"
-                        >
-                          <span>{expandedExtensoes[processo.id] ? 'Ocultar' : 'Ver quais são'}</span>
-                          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedExtensoes[processo.id] ? 'rotate-180' : ''}`} />
-                        </button>
+
+                        {/* LISTA SUSPENSA DE EXTENSÕES (Requisito: lista suspensa para mostrar as extensões e ir direto para o cartão) */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label htmlFor={`jump-ext-${processo.id}`} className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-200 whitespace-nowrap">
+                            Ir para extensão:
+                          </label>
+                          <select
+                            id={`jump-ext-${processo.id}`}
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleJumpToExtensao(e.target.value);
+                                e.target.value = '';
+                              }
+                            }}
+                            className="text-xs font-semibold py-1.5 px-2.5 rounded-lg border border-emerald-400 dark:border-emerald-600 bg-white dark:bg-neutral-800 text-emerald-950 dark:text-emerald-100 shadow-2xs focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer max-w-[280px] sm:max-w-none truncate"
+                          >
+                            <option value="" disabled>
+                              -- Selecionar extensão ({extensoesDesteProcesso.length}) --
+                            </option>
+                            {extensoesDesteProcesso.map((ext) => (
+                              <option key={ext.id} value={ext.id}>
+                                {ext.numeroSolicitacao} · {ext.mmv} [{ext.situacao}]
+                              </option>
+                            ))}
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleExpandedExtensoes(processo.id)}
+                            className="text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-100 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-100/80 hover:bg-emerald-200 dark:bg-emerald-900/60 dark:hover:bg-emerald-800 transition-colors cursor-pointer shrink-0"
+                            title="Ver detalhes de todas as extensões vinculadas"
+                          >
+                            <span>{expandedExtensoes[processo.id] ? 'Ocultar' : 'Detalhes'}</span>
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedExtensoes[processo.id] ? 'rotate-180' : ''}`} />
+                          </button>
+                        </div>
                       </div>
+
                       {expandedExtensoes[processo.id] && (
                         <div className="pt-2 border-t border-emerald-200 dark:border-emerald-800 space-y-2 animate-in fade-in-0 duration-150">
                           {extensoesDesteProcesso.map((ext) => (
@@ -748,11 +866,20 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                                 <span className="font-semibold text-neutral-900 dark:text-white truncate">
                                   {ext.mmv}
                                 </span>
-                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 shrink-0">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 shrink-0">
                                   {ext.situacao}
                                 </span>
                               </div>
                               <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                                <button
+                                  type="button"
+                                  onClick={() => handleJumpToExtensao(ext.id)}
+                                  className="px-2.5 py-1 rounded text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors inline-flex items-center gap-1 shadow-2xs cursor-pointer"
+                                  title="Rolar diretamente para o cartão desta extensão"
+                                >
+                                  <span>Ir para cartão</span>
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => onOpenObservations(ext)}
@@ -761,14 +888,16 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                                 >
                                   <MessageSquare className="w-3.5 h-3.5" />
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => onEditProcesso(ext)}
-                                  className="px-2 py-1 rounded text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors inline-flex items-center gap-1 shadow-2xs"
-                                >
-                                  <Edit3 className="w-3 h-3" />
-                                  <span>Ver / Editar Extensão</span>
-                                </button>
+                                {!isVisitante && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditProcesso(ext)}
+                                    className="px-2 py-1 rounded text-xs font-semibold bg-neutral-100 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors inline-flex items-center gap-1"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                    <span>Editar</span>
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -948,40 +1077,56 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                     </button>
 
                     <div className="flex items-center gap-2">
-                      {/* Botão Criar extensão */}
-                      <button
-                        type="button"
-                        onClick={() => onCreateExtensao ? onCreateExtensao(processo) : undefined}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 transition-colors inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                        title={`Gerar uma extensão a partir de ${processo.mmv}`}
-                      >
-                        <GitBranch className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                        <span>Criar extensão</span>
-                      </button>
+                      {/* Botão Criar extensão - APENAS para cartões normais (NÃO para cartões de extensão) e NÃO para visitante */}
+                      {!isProcessoExtensao && !isVisitante && (
+                        <button
+                          type="button"
+                          onClick={() => onCreateExtensao ? onCreateExtensao(processo) : undefined}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 transition-colors inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                          title={`Gerar uma extensão a partir de ${processo.mmv}`}
+                        >
+                          <GitBranch className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>Criar extensão</span>
+                        </button>
+                      )}
 
+                      {/* Botão Editar (ou Visualizar se Visitante) */}
                       <button
                         onClick={() => onEditProcesso(processo)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-colors inline-flex items-center gap-1.5"
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                        title={isVisitante ? 'Visualizar dados completos do processo' : 'Editar dados do processo'}
                       >
-                        <Edit3 className="w-3.5 h-3.5 text-[#E30613]" />
-                        <span>Editar</span>
+                        {isVisitante ? (
+                          <>
+                            <Eye className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                            <span>Visualizar</span>
+                          </>
+                        ) : (
+                          <>
+                            <Edit3 className="w-3.5 h-3.5 text-[#E30613]" />
+                            <span>Editar</span>
+                          </>
+                        )}
                       </button>
 
-                      <button
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Deseja realmente remover o processo ${processo.numeroSolicitacao} (${processo.mmv})?`
-                            )
-                          ) {
-                            onDeleteProcesso(processo.id);
-                          }
-                        }}
-                        className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                        title="Remover processo"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {/* Botão Excluir - Oculto para visitante */}
+                      {!isVisitante && (
+                        <button
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Deseja realmente remover o processo ${processo.numeroSolicitacao} (${processo.mmv})?`
+                              )
+                            ) {
+                              onDeleteProcesso(processo.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                          title="Remover processo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

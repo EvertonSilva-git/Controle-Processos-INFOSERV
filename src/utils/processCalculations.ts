@@ -201,10 +201,10 @@ export function obterOpcoesQuantidade(tipo: ProcessoTipo): {
       };
     case 'LCM Especial':
       return {
-        isSelect: false,
-        isInput: true,
+        isSelect: true,
+        isInput: false,
         isOmitted: false,
-        options: [],
+        options: ['1', '2'],
       };
     case 'Extensão':
       return {

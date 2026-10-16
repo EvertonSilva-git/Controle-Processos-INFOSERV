@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Processo, Observacao } from '../types/process';
 import { formatarDataHoraBR } from '../utils/processCalculations';
-import { MessageSquare, Send, X, Clock, User, Trash2 } from 'lucide-react';
+import { MessageSquare, Send, X, Clock, User, Trash2, Eye } from 'lucide-react';
 
 interface ObservationModalProps {
   processo: Processo | null;
@@ -21,6 +21,7 @@ export const ObservationModal: React.FC<ObservationModalProps> = ({
   currentUser,
 }) => {
   const [novoTexto, setNovoTexto] = useState('');
+  const isVisitante = currentUser === 'Visitante';
 
   if (!isOpen || !processo) return null;
 
@@ -92,43 +93,59 @@ export const ObservationModal: React.FC<ObservationModalProps> = ({
           </button>
         </div>
 
-        {/* Observation Input Form */}
+        {/* Observation Input Form / Visitor Notice */}
         <div className="p-4 border-b border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-          <form onSubmit={handleSubmit} className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                Nova Anotação ou Despacho
-              </label>
-              {currentUser && (
-                <div className="text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
-                  <span>Autor:</span>
-                  {getAuthorBadge(currentUser)}
+          {isVisitante ? (
+            <div className="p-3.5 bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 rounded-xl text-purple-900 dark:text-purple-200 text-xs flex items-center gap-3">
+              <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/60 text-purple-600 dark:text-purple-400 shrink-0">
+                <Eye className="w-4 h-4" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="font-bold text-purple-950 dark:text-purple-100">
+                  Modo de Consulta (Visitante)
                 </div>
-              )}
+                <div className="text-[11px] text-purple-800/80 dark:text-purple-300">
+                  Você está navegando em modo somente leitura. O registro e exclusão de anotações estão desativados.
+                </div>
+              </div>
             </div>
-            <div>
-              <textarea
-                rows={3}
-                value={novoTexto}
-                onChange={(e) => setNovoTexto(e.target.value)}
-                placeholder="Descreva pendências técnicas, pagamento de taxa GRU, despachos com IBAMA ou ATC..."
-                className="w-full p-2.5 text-xs sm:text-sm border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-500 placeholder:text-neutral-400"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-neutral-400">
-                Registrado no acervo do processo.
-              </span>
-              <button
-                type="submit"
-                disabled={!novoTexto.trim()}
-                className="px-3.5 py-1.5 bg-[#E30613] hover:bg-[#c70510] disabled:opacity-40 text-white font-medium text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>Salvar Nota</span>
-              </button>
-            </div>
-          </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  Nova Anotação ou Despacho
+                </label>
+                {currentUser && (
+                  <div className="text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
+                    <span>Autor:</span>
+                    {getAuthorBadge(currentUser)}
+                  </div>
+                )}
+              </div>
+              <div>
+                <textarea
+                  rows={3}
+                  value={novoTexto}
+                  onChange={(e) => setNovoTexto(e.target.value)}
+                  placeholder="Descreva pendências técnicas, pagamento de taxa GRU, despachos com IBAMA ou ATC..."
+                  className="w-full p-2.5 text-xs sm:text-sm border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-500 placeholder:text-neutral-400"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-neutral-400">
+                  Registrado no acervo do processo.
+                </span>
+                <button
+                  type="submit"
+                  disabled={!novoTexto.trim()}
+                  className="px-3.5 py-1.5 bg-[#E30613] hover:bg-[#c70510] disabled:opacity-40 text-white font-medium text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Salvar Nota</span>
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
         {/* Timeline of Observations */}
@@ -156,11 +173,11 @@ export const ObservationModal: React.FC<ObservationModalProps> = ({
                     <div className="flex items-center gap-1 font-mono text-[10px] text-neutral-400">
                       <Clock className="w-3 h-3 text-neutral-400" />
                       <span>{formatarDataHoraBR(obs.dataHora)}</span>
-                      {onDeleteObservacao && (
+                      {!isVisitante && onDeleteObservacao && (
                         <button
                           type="button"
                           onClick={() => onDeleteObservacao(processo.id, obs.id)}
-                          className="ml-2 opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-rose-600 transition-opacity"
+                          className="ml-2 opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-rose-600 transition-opacity cursor-pointer"
                           title="Remover anotação"
                         >
                           <Trash2 className="w-3 h-3" />

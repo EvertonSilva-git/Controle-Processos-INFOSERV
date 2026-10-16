@@ -7,6 +7,7 @@ interface AddCnpjModalProps {
   onClose: () => void;
   onSave: (newCnpj: CnpjOption) => void;
   existingCnpjs: CnpjOption[];
+  isVisitante?: boolean;
 }
 
 export const AddCnpjModal: React.FC<AddCnpjModalProps> = ({
@@ -14,12 +15,13 @@ export const AddCnpjModal: React.FC<AddCnpjModalProps> = ({
   onClose,
   onSave,
   existingCnpjs,
+  isVisitante = false,
 }) => {
   const [cnpjInput, setCnpjInput] = useState('');
   const [descricaoInput, setDescricaoInput] = useState('');
   const [erro, setErro] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  if (!isOpen || isVisitante) return null;
 
   const rawDigits = limparCNPJ(cnpjInput);
   const formattedPreview = formatarCNPJ(rawDigits);

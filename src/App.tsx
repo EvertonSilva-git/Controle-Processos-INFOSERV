@@ -9,11 +9,17 @@ import { ProcessFormScreen } from './components/ProcessFormScreen';
 import { ProcessesScreen } from './components/ProcessesScreen';
 import { ObservationModal } from './components/ObservationModal';
 import { EditProcessModal } from './components/EditProcessModal';
+import { Eye, EyeOff, Lock, ArrowLeft, KeyRound } from 'lucide-react';
 
 const STORAGE_KEY = 'shineray_infoserv_processos_v1';
 const CNPJ_STORAGE_KEY = 'shineray_infoserv_cnpjs_v1';
 const THEME_STORAGE_KEY = 'shineray_infoserv_theme';
 const USER_STORAGE_KEY = 'shineray_infoserv_user'; // Nova chave para o login
+
+const USER_PASSWORDS: Record<string, string> = {
+  'Everton Silva': 'El@2026#',
+  'Luca Andrade': '@Arapuca123',
+};
 
 export default function App() {
   // Estado de Autenticação (Login)
@@ -24,6 +30,11 @@ export default function App() {
       return null;
     }
   });
+
+  const [selectedLoginUser, setSelectedLoginUser] = useState<'Luca Andrade' | 'Everton Silva' | null>(null);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = (nome: string) => {
     setCurrentUser(nome);
@@ -126,6 +137,10 @@ export default function App() {
   }, []);
 
   const handleAddCnpj = (newCnpj: CnpjOption) => {
+    if (currentUser === 'Visitante') {
+      alert('Modo Visitante: você não possui permissão para cadastrar novo CNPJ.');
+      return;
+    }
     setCnpjList((prev) => {
       const existsIndex = prev.findIndex((c) => c.raw === newCnpj.raw);
       let updated: CnpjOption[];
@@ -150,6 +165,10 @@ export default function App() {
   };
 
   const handleDeleteCnpj = (rawCnpj: string) => {
+    if (currentUser === 'Visitante') {
+      alert('Modo Visitante: você não possui permissão para excluir CNPJs.');
+      return;
+    }
     setCnpjList((prev) => {
       const updated = prev.filter((c) => c.raw !== rawCnpj);
       try {
@@ -227,6 +246,10 @@ export default function App() {
   }, [processos]);
 
   const handleSaveProcesso = (novoOuAtualizado: Processo) => {
+    if (currentUser === 'Visitante') {
+      alert('Modo Visitante: você possui acesso somente para consulta.');
+      return;
+    }
     setProcessos((prev) => {
       const existsIndex = prev.findIndex((p) => p.id === novoOuAtualizado.id);
       if (existsIndex >= 0) {
@@ -245,6 +268,10 @@ export default function App() {
   };
 
   const handleDeleteProcesso = (processoId: string) => {
+    if (currentUser === 'Visitante') {
+      alert('Modo Visitante: você possui acesso somente para consulta.');
+      return;
+    }
     setProcessos((prev) => prev.filter((p) => p.id !== processoId));
     if (observacaoModalProcesso?.id === processoId) {
       setObservacaoModalProcesso(null);
@@ -253,6 +280,10 @@ export default function App() {
 
   // Add observation note - AGORA USA O CURRENT USER
   const handleAddObservacao = (processoId: string, texto: string) => {
+    if (currentUser === 'Visitante') {
+      alert('Modo Visitante: você não possui permissão para registrar anotações.');
+      return;
+    }
     const agora = new Date().toISOString();
     setProcessos((prev) =>
       prev.map((p) => {
@@ -275,6 +306,10 @@ export default function App() {
   };
 
   const handleDeleteObservacao = (processoId: string, obsId: string) => {
+    if (currentUser === 'Visitante') {
+      alert('Modo Visitante: você não possui permissão para excluir anotações.');
+      return;
+    }
     setProcessos((prev) =>
       prev.map((p) => {
         if (p.id !== processoId) return p;
@@ -309,11 +344,19 @@ export default function App() {
 
   // Criação automática de extensão duplicando dados do processo original
   const handleCreateExtensao = (original: Processo) => {
+    if (currentUser === 'Visitante') {
+      alert('Modo Visitante: você possui acesso somente leitura e não pode criar extensões.');
+      return;
+    }
+    if (original.isExtensao || original.tipo === 'Extensão') {
+      alert('Atenção: Cartões de extensão não possuem permissão para criar novas extensões. Apenas cartões normais podem gerar extensões.');
+      return;
+    }
     const agora = new Date().toISOString();
     const mmvParts = decomporMMV(original.mmv, original.procedencia);
     const novaExtensao: Processo = {
       id: `proc-ext-${Date.now()}`,
-      tipo: original.tipo === 'Extensão' ? 'LCVM' : original.tipo,
+      tipo: original.tipo,
       numeroSolicitacao: `${original.numeroSolicitacao} EXT`,
       procedencia: original.procedencia,
       orgaoCertificador: original.orgaoCertificador || 'IMT',
@@ -351,6 +394,10 @@ export default function App() {
   };
 
   const handleResetData = () => {
+    if (currentUser === 'Visitante') {
+      alert('Modo Visitante: você não possui permissão para restaurar dados.');
+      return;
+    }
     if (
       window.confirm(
         'Deseja restaurar os processos de teste padrão da Shineray? Isso resetará dados modificados.'
@@ -366,7 +413,21 @@ export default function App() {
     estaParaRevalidar(p.dataValidade, p.situacao)
   ).length;
 
-  // ECRÃ DE LOGIN (Se não houver utilizador selecionado: Luca Andrade ou Everton Silva)
+  const handleVerifyPassword = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedLoginUser) return;
+    const expectedPassword = USER_PASSWORDS[selectedLoginUser];
+    if (passwordInput === expectedPassword) {
+      handleLogin(selectedLoginUser);
+      setSelectedLoginUser(null);
+      setPasswordInput('');
+      setPasswordError('');
+    } else {
+      setPasswordError('Senha incorreta. Verifique os caracteres e tente novamente.');
+    }
+  };
+
+  // ECRÃ DE LOGIN (Se não houver utilizador selecionado: Luca Andrade, Everton Silva ou Visitante)
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0f172a] flex items-center justify-center p-4 font-sans transition-colors selection:bg-[#E30613]/10 selection:text-[#E30613]">
@@ -382,46 +443,199 @@ export default function App() {
           <p className="text-xs uppercase font-bold tracking-widest text-[#E30613] mb-3">
             Shineray do Brasil · IBAMA / PROCONVE
           </p>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-8 leading-relaxed">
-            Selecione o analista responsável para iniciar a sessão e registrar notas e despachos.
-          </p>
-          <div className="space-y-3.5">
-            <button
-              onClick={() => handleLogin('Luca Andrade')}
-              className="w-full p-4 bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-800/80 dark:hover:bg-neutral-750 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-2xl font-semibold transition-all active:scale-[0.98] shadow-xs hover:shadow-md flex items-center justify-between text-left group cursor-pointer"
-            >
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-xl bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 flex items-center justify-center font-black text-base group-hover:scale-105 transition-transform shadow-2xs">
-                  LA
-                </div>
-                <div>
-                  <div className="font-bold text-base text-neutral-900 dark:text-white">Luca Andrade</div>
-                  <div className="text-xs font-semibold text-blue-600 dark:text-blue-400">Engenheiro Mecânico</div>
-                </div>
-              </div>
-              <span className="text-xs font-bold text-blue-600 dark:text-blue-400 group-hover:translate-x-1 transition-transform">
-                Acessar →
-              </span>
-            </button>
 
-            <button
-              onClick={() => handleLogin('Everton Silva')}
-              className="w-full p-4 bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-800/80 dark:hover:bg-neutral-750 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-2xl font-semibold transition-all active:scale-[0.98] shadow-xs hover:shadow-md flex items-center justify-between text-left group cursor-pointer"
-            >
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-black text-base group-hover:scale-105 transition-transform shadow-2xs">
-                  ES
+          {selectedLoginUser ? (
+            /* Formulário de Autenticação por Senha para o analista selecionado */
+            <form onSubmit={handleVerifyPassword} className="space-y-4 text-left animate-in fade-in-0 duration-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedLoginUser(null);
+                  setPasswordInput('');
+                  setPasswordError('');
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors mb-1 cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Trocar analista</span>
+              </button>
+
+              <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 flex items-center gap-3">
+                <div
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-base shadow-2xs shrink-0 ${
+                    selectedLoginUser === 'Luca Andrade'
+                      ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300'
+                      : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
+                  }`}
+                >
+                  {selectedLoginUser === 'Luca Andrade' ? 'LA' : 'ES'}
                 </div>
-                <div>
-                  <div className="font-bold text-base text-neutral-900 dark:text-white">Everton Silva</div>
-                  <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Assistente Técnico de Homologação</div>
+                <div className="min-w-0">
+                  <div className="font-bold text-sm text-neutral-900 dark:text-white truncate">
+                    {selectedLoginUser}
+                  </div>
+                  <div
+                    className={`text-xs font-semibold truncate ${
+                      selectedLoginUser === 'Luca Andrade'
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                    }`}
+                  >
+                    {selectedLoginUser === 'Luca Andrade'
+                      ? 'Engenheiro Mecânico'
+                      : 'Assistente Técnico de Homologação'}
+                  </div>
                 </div>
               </div>
-              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 group-hover:translate-x-1 transition-transform">
-                Acessar →
-              </span>
-            </button>
-          </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  Senha de Acesso do Analista
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-400">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={passwordInput}
+                    onChange={(e) => {
+                      setPasswordInput(e.target.value);
+                      if (passwordError) setPasswordError('');
+                    }}
+                    autoFocus
+                    placeholder="Digite sua senha"
+                    className="w-full pl-10 pr-10 py-3 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#E30613]/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
+                    title={showPassword ? 'Ocultar senha' : 'Exibir senha'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {passwordError && (
+                  <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 mt-1">
+                    {passwordError}
+                  </p>
+                )}
+              </div>
+
+              <div className="pt-2 flex flex-col gap-2">
+                <button
+                  type="submit"
+                  className="w-full py-3 px-4 bg-[#E30613] hover:bg-[#c70510] text-white font-bold text-sm rounded-xl transition-all shadow-md active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  <span>Acessar como {selectedLoginUser.split(' ')[0]}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedLoginUser(null);
+                    setPasswordInput('');
+                    setPasswordError('');
+                  }}
+                  className="w-full py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer"
+                >
+                  Voltar
+                </button>
+              </div>
+            </form>
+          ) : (
+            /* Lista de Seleção de Usuários */
+            <>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-8 leading-relaxed">
+                Selecione o analista responsável para iniciar a sessão e registrar notas e despachos.
+              </p>
+              <div className="space-y-3.5">
+                <button
+                  onClick={() => {
+                    setSelectedLoginUser('Luca Andrade');
+                    setPasswordInput('');
+                    setPasswordError('');
+                    setShowPassword(false);
+                  }}
+                  className="w-full p-4 bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-800/80 dark:hover:bg-neutral-750 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-2xl font-semibold transition-all active:scale-[0.98] shadow-xs hover:shadow-md flex items-center justify-between text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-xl bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 flex items-center justify-center font-black text-base group-hover:scale-105 transition-transform shadow-2xs">
+                      LA
+                    </div>
+                    <div>
+                      <div className="font-bold text-base text-neutral-900 dark:text-white">Luca Andrade</div>
+                      <div className="text-xs font-semibold text-blue-600 dark:text-blue-400">Engenheiro Mecânico</div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-neutral-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 flex items-center gap-1 transition-colors">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Senha</span>
+                    <span className="group-hover:translate-x-1 transition-transform">→</span>
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setSelectedLoginUser('Everton Silva');
+                    setPasswordInput('');
+                    setPasswordError('');
+                    setShowPassword(false);
+                  }}
+                  className="w-full p-4 bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-800/80 dark:hover:bg-neutral-750 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white rounded-2xl font-semibold transition-all active:scale-[0.98] shadow-xs hover:shadow-md flex items-center justify-between text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-black text-base group-hover:scale-105 transition-transform shadow-2xs">
+                      ES
+                    </div>
+                    <div>
+                      <div className="font-bold text-base text-neutral-900 dark:text-white">Everton Silva</div>
+                      <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Assistente Técnico de Homologação</div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-neutral-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 flex items-center gap-1 transition-colors">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Senha</span>
+                    <span className="group-hover:translate-x-1 transition-transform">→</span>
+                  </span>
+                </button>
+
+                {/* Login de Visitante (Sem Senha / Apenas Consulta) */}
+                <div className="pt-2">
+                  <div className="relative flex py-2 items-center">
+                    <div className="flex-grow border-t border-neutral-200 dark:border-neutral-700"></div>
+                    <span className="flex-shrink mx-3 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
+                      ou Acesso Aberto
+                    </span>
+                    <div className="flex-grow border-t border-neutral-200 dark:border-neutral-700"></div>
+                  </div>
+
+                  <button
+                    onClick={() => handleLogin('Visitante')}
+                    className="w-full p-4 bg-purple-50/70 hover:bg-purple-100/80 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 border border-purple-200 dark:border-purple-800 text-purple-950 dark:text-purple-100 rounded-2xl font-semibold transition-all active:scale-[0.98] shadow-xs hover:shadow-md flex items-center justify-between text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-11 h-11 rounded-xl bg-purple-200 dark:bg-purple-900/80 text-purple-800 dark:text-purple-200 flex items-center justify-center font-bold text-base group-hover:scale-105 transition-transform shadow-2xs">
+                        <Eye className="w-5 h-5 text-purple-700 dark:text-purple-300" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-base text-neutral-900 dark:text-white">Visitante</span>
+                          <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded bg-purple-200/80 dark:bg-purple-800 text-purple-900 dark:text-purple-100 font-bold">Sem Senha</span>
+                        </div>
+                        <div className="text-xs font-semibold text-purple-600 dark:text-purple-400">Apenas Consulta · Modo Leitura</div>
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold text-purple-600 dark:text-purple-400 group-hover:translate-x-1 transition-transform">
+                      Entrar →
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
           <div className="mt-8 pt-4 border-t border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-400">
             Controle de processos regulatórios PROCONVE / PROMOT M5
           </div>
@@ -430,11 +644,14 @@ export default function App() {
     );
   }
 
+  const isVisitante = currentUser === 'Visitante';
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0f172a] flex flex-col font-sans text-neutral-900 dark:text-neutral-100 selection:bg-[#E30613]/10 selection:text-[#E30613] transition-colors">
       <Navbar
         currentTab={currentTab}
         onNavigate={(tab) => {
+          if (tab === 'cadastro' && isVisitante) return;
           setCurrentTab(tab);
           if (tab === 'home') {
             setTipoFiltro(null);
@@ -462,6 +679,7 @@ export default function App() {
           setCurrentUser(null);
           localStorage.removeItem(USER_STORAGE_KEY);
         }}
+        isVisitante={isVisitante}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8">
@@ -474,23 +692,49 @@ export default function App() {
               else setTipoFiltro(null);
               setCurrentTab('processos');
             }}
-            onNavigateToCadastro={() => setCurrentTab('cadastro')}
+            onNavigateToCadastro={() => {
+              if (!isVisitante) setCurrentTab('cadastro');
+            }}
             onSelectProcesso={(p) => {
               setObservacaoModalProcesso(p);
             }}
+            isVisitante={isVisitante}
           />
         )}
 
         {currentTab === 'cadastro' && (
-          <ProcessFormScreen
-            onSave={(novo) => {
-              handleSaveProcesso(novo);
-            }}
-            onCancel={() => setCurrentTab('home')}
-            cnpjs={allCnpjs}
-            onAddCnpj={handleAddCnpj}
-            currentUser={currentUser}
-          />
+          isVisitante ? (
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 rounded-2xl p-10 text-center shadow-xs space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 flex items-center justify-center mx-auto font-bold">
+                <Eye className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-neutral-900 dark:text-white">
+                Acesso Restrito · Modo Visitante
+              </h3>
+              <p className="text-xs text-neutral-500 max-w-md mx-auto leading-relaxed">
+                O perfil de visitante possui autorização exclusivamente para consulta de homologações, prazos regulatórios e relatórios. O cadastro de novos processos requer autenticação de analista técnico.
+              </p>
+              <div className="pt-2">
+                <button
+                  onClick={() => setCurrentTab('home')}
+                  className="px-4 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-semibold rounded-xl hover:opacity-90 transition-opacity"
+                >
+                  Voltar ao Painel Geral
+                </button>
+              </div>
+            </div>
+          ) : (
+            <ProcessFormScreen
+              onSave={(novo) => {
+                handleSaveProcesso(novo);
+              }}
+              onCancel={() => setCurrentTab('home')}
+              cnpjs={allCnpjs}
+              onAddCnpj={handleAddCnpj}
+              currentUser={currentUser}
+              isVisitante={isVisitante}
+            />
+          )
         )}
 
         {currentTab === 'processos' && (
@@ -503,7 +747,9 @@ export default function App() {
             onOpenObservations={(p) => setObservacaoModalProcesso(p)}
             onEditProcesso={(p) => setEditModalProcesso(p)}
             onDeleteProcesso={handleDeleteProcesso}
-            onNavigateToCadastro={() => setCurrentTab('cadastro')}
+            onNavigateToCadastro={() => {
+              if (!isVisitante) setCurrentTab('cadastro');
+            }}
             onCreateExtensao={handleCreateExtensao}
             cnpjs={allCnpjs}
             onAddCnpj={handleAddCnpj}
@@ -511,6 +757,8 @@ export default function App() {
             searchTerm={searchQuery}
             onSearchTermChange={setSearchQuery}
             onExportExcel={handleExportExcel}
+            currentUser={currentUser}
+            isVisitante={isVisitante}
           />
         )}
       </main>
@@ -532,6 +780,7 @@ export default function App() {
         cnpjs={allCnpjs}
         onAddCnpj={handleAddCnpj}
         currentUser={currentUser}
+        isVisitante={isVisitante}
       />
 
       <footer className="mt-auto border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#111827] py-6 transition-colors">

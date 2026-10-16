@@ -11,6 +11,7 @@ interface EditProcessModalProps {
   cnpjs?: CnpjOption[];
   onAddCnpj?: (newCnpj: CnpjOption) => void;
   currentUser?: string | null;
+  isVisitante?: boolean;
 }
 
 export const EditProcessModal: React.FC<EditProcessModalProps> = ({
@@ -21,6 +22,7 @@ export const EditProcessModal: React.FC<EditProcessModalProps> = ({
   cnpjs,
   onAddCnpj,
   currentUser,
+  isVisitante = false,
 }) => {
   if (!isOpen || !processo) return null;
 
@@ -29,7 +31,7 @@ export const EditProcessModal: React.FC<EditProcessModalProps> = ({
       <div className="bg-white dark:bg-neutral-900 rounded-2xl max-w-4xl w-full shadow-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150 my-auto">
         <div className="p-4 sm:p-5 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-800/50 flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-            <span>Edição de Processo</span>
+            <span>{isVisitante ? 'Visualização de Processo (Modo Consulta)' : 'Edição de Processo'}</span>
             <span>·</span>
             <span className="font-mono text-[#E30613] font-bold">{processo.numeroSolicitacao}</span>
             <span>·</span>
@@ -49,6 +51,7 @@ export const EditProcessModal: React.FC<EditProcessModalProps> = ({
             cnpjs={cnpjs}
             onAddCnpj={onAddCnpj}
             currentUser={currentUser}
+            isVisitante={isVisitante}
             onSave={(updated) => {
               onSave(updated);
               onClose();

@@ -75,7 +75,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     orgaoCertificador: 'IMT',
     mmv: 'I/SHINERAY/STORM 200 PRO OFFROAD',
     numeroLicenca: '',
-    quantidade: 'Limitada (1 a 2)',
+    quantidade: '2',
     tipoVeiculo: 'Motocicleta fora de estrada',
     dataInicio: '2026-08-01',
     situacao: 'Em análise pelo Analista do ATC',

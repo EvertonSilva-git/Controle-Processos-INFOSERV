@@ -133,4 +133,4 @@ export type ProcessosSubTab =
   | 'comparacao_prazos'
   | 'todos';
 
-export type AppUser = 'Luca Andrade' | 'Everton Silva';
+export type AppUser = 'Luca Andrade' | 'Everton Silva' | 'Visitante';

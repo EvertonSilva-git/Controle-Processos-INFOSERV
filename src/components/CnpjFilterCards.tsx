@@ -10,6 +10,7 @@ interface CnpjFilterCardsProps {
   cnpjs?: CnpjOption[];
   onAddCnpj?: (newCnpj: CnpjOption) => void;
   onDeleteCnpj?: (rawCnpj: string) => void;
+  isVisitante?: boolean;
 }
 
 export const CnpjFilterCards: React.FC<CnpjFilterCardsProps> = ({
@@ -19,6 +20,7 @@ export const CnpjFilterCards: React.FC<CnpjFilterCardsProps> = ({
   cnpjs = DEFAULT_CNPJ_OPTIONS,
   onAddCnpj,
   onDeleteCnpj,
+  isVisitante = false,
 }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -34,6 +36,7 @@ export const CnpjFilterCards: React.FC<CnpjFilterCardsProps> = ({
   const totalCount = processos.length;
 
   const handleSaveNewCnpj = (newCnpj: CnpjOption) => {
+    if (isVisitante) return;
     if (onAddCnpj) {
       onAddCnpj(newCnpj);
     }
@@ -60,11 +63,11 @@ export const CnpjFilterCards: React.FC<CnpjFilterCardsProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5">
-          {onAddCnpj && (
+          {onAddCnpj && !isVisitante && (
             <button
               type="button"
               onClick={() => setIsAddModalOpen(true)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-colors border border-neutral-200/80 dark:border-neutral-700"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-colors border border-neutral-200/80 dark:border-neutral-700 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5 text-[#E30613]" />
               <span>Novo CNPJ</span>
@@ -152,7 +155,7 @@ export const CnpjFilterCards: React.FC<CnpjFilterCardsProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  {opt.isCustom && onDeleteCnpj && (
+                  {!isVisitante && opt.isCustom && onDeleteCnpj && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -203,7 +206,7 @@ export const CnpjFilterCards: React.FC<CnpjFilterCardsProps> = ({
         })}
 
         {/* Quick Add Card at the end of the grid */}
-        {onAddCnpj && (
+        {!isVisitante && onAddCnpj && (
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
@@ -219,12 +222,14 @@ export const CnpjFilterCards: React.FC<CnpjFilterCardsProps> = ({
       </div>
 
       {/* Add CNPJ Modal */}
-      <AddCnpjModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSave={handleSaveNewCnpj}
-        existingCnpjs={cnpjs}
-      />
+      {!isVisitante && (
+        <AddCnpjModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onSave={handleSaveNewCnpj}
+          existingCnpjs={cnpjs}
+        />
+      )}
     </div>
   );
 };

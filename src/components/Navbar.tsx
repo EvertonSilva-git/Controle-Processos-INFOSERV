@@ -14,7 +14,8 @@ import {
   Building2,
   ArrowRight,
   FileSpreadsheet,
-  UserCheck
+  UserCheck,
+  Eye,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -32,6 +33,7 @@ interface NavbarProps {
   onSearchChange?: (query: string) => void;
   currentUser?: string | null;
   onSwitchUser?: () => void;
+  isVisitante?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -49,6 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSearchChange,
   currentUser,
   onSwitchUser,
+  isVisitante = false,
 }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -362,50 +365,77 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="text-[11px] font-semibold hidden md:inline">Excel</span>
             </button>
 
-            <button
-              onClick={onResetData}
-              title="Restaurar dados padrão de teste"
-              className="p-2 text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors hidden xl:flex cursor-pointer"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
+            {/* Reset data button - apenas para analistas autenticados */}
+            {!isVisitante && (
+              <button
+                onClick={onResetData}
+                title="Restaurar dados padrão de teste"
+                className="p-2 text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors hidden xl:flex cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            )}
 
             {/* Usuário Atual com opção de trocar - tamanho compacto */}
             {currentUser && onSwitchUser && (
               <button
                 type="button"
                 onClick={onSwitchUser}
-                title={`Usuário ativo: ${currentUser} (${currentUser === 'Luca Andrade' ? 'Engenheiro Mecânico' : 'Assistente Técnico de Homologação'}) - Clique para alternar`}
+                title={
+                  currentUser === 'Visitante'
+                    ? 'Usuário ativo: Visitante (Apenas Consulta / Somente Leitura) - Clique para alternar'
+                    : `Usuário ativo: ${currentUser} (${currentUser === 'Luca Andrade' ? 'Engenheiro Mecânico' : 'Assistente Técnico de Homologação'}) - Clique para alternar`
+                }
                 className="h-8 hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-750 transition-colors text-[11px] font-medium text-neutral-700 dark:text-neutral-200 shadow-2xs cursor-pointer shrink-0"
               >
-                <div className={`w-1.5 h-1.5 rounded-full ${currentUser === 'Luca Andrade' ? 'bg-blue-500' : 'bg-emerald-500'}`} />
-                <span className="truncate max-w-[75px] text-[11px] font-semibold">{currentUser}</span>
+                <div
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    currentUser === 'Luca Andrade'
+                      ? 'bg-blue-500'
+                      : currentUser === 'Everton Silva'
+                      ? 'bg-emerald-500'
+                      : 'bg-purple-500'
+                  }`}
+                />
+                <span className="truncate max-w-[85px] text-[11px] font-semibold">
+                  {currentUser === 'Visitante' ? 'Visitante' : currentUser}
+                </span>
                 <span className="text-[10px] text-neutral-400 font-normal">⇄</span>
               </button>
             )}
 
-            {/* Primary Navigation '+' Button with hover tooltip "Cadastrar novo processo" */}
-            <div className="relative group">
-              <button
-                onClick={() => onNavigate('cadastro')}
-                aria-label="Cadastrar novo processo"
-                className={`flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg font-semibold text-xs sm:text-sm text-white transition-colors shadow-2xs ${
-                  currentTab === 'cadastro'
-                    ? 'bg-neutral-900 dark:bg-white dark:text-neutral-950'
-                    : 'bg-[#E30613] hover:bg-[#c70510]'
-                }`}
+            {/* Primary Navigation '+' Button ou Badge de Modo Consulta */}
+            {isVisitante ? (
+              <div
+                className="hidden sm:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-xs font-semibold shadow-2xs"
+                title="Acesso de visitante: permissão apenas para consulta de dados, sem edição"
               >
-                <Plus className="w-4 h-4 stroke-[2.5]" />
-                <span className="hidden sm:inline">Novo Processo</span>
-              </button>
+                <Eye className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                <span>Modo Consulta</span>
+              </div>
+            ) : (
+              <div className="relative group">
+                <button
+                  onClick={() => onNavigate('cadastro')}
+                  aria-label="Cadastrar novo processo"
+                  className={`flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg font-semibold text-xs sm:text-sm text-white transition-colors shadow-2xs ${
+                    currentTab === 'cadastro'
+                      ? 'bg-neutral-900 dark:bg-white dark:text-neutral-950'
+                      : 'bg-[#E30613] hover:bg-[#c70510]'
+                  }`}
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span className="hidden sm:inline">Novo Processo</span>
+                </button>
 
-              {/* Tooltip on hover */}
-              <div className="absolute right-0 top-full mt-2 hidden group-hover:flex items-center pointer-events-none z-50 whitespace-nowrap">
-                <div className="bg-neutral-900 dark:bg-neutral-800 text-white text-xs font-medium px-2.5 py-1.5 rounded shadow-lg border border-neutral-800 dark:border-neutral-700">
-                  Cadastrar novo processo
+                {/* Tooltip on hover */}
+                <div className="absolute right-0 top-full mt-2 hidden group-hover:flex items-center pointer-events-none z-50 whitespace-nowrap">
+                  <div className="bg-neutral-900 dark:bg-neutral-800 text-white text-xs font-medium px-2.5 py-1.5 rounded shadow-lg border border-neutral-800 dark:border-neutral-700">
+                    Cadastrar novo processo
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

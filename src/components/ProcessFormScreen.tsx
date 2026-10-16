@@ -40,6 +40,7 @@ interface ProcessFormScreenProps {
   isExtensao?: boolean;
   processoOriginal?: Processo | null;
   currentUser?: string | null;
+  isVisitante?: boolean;
 }
 
 export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
@@ -51,6 +52,7 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
   isExtensao = false,
   processoOriginal,
   currentUser,
+  isVisitante = false,
 }) => {
   const [isAddCnpjModalOpen, setIsAddCnpjModalOpen] = useState(false);
 
@@ -184,6 +186,10 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isVisitante) {
+      alert('Modo Visitante: você não possui permissão para salvar ou alterar processos.');
+      return;
+    }
     const novosErros: { [key: string]: string } = {};
 
     if (!numeroSolicitacaoInput.trim()) {
@@ -296,6 +302,23 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
             <div className="font-semibold text-xs sm:text-sm">Processo salvo com sucesso!</div>
             <div className="text-[11px] text-emerald-700 dark:text-emerald-400">
               Os dados foram registrados no acervo de homologações da Shineray.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Visitor notice banner */}
+      {isVisitante && (
+        <div className="p-4 bg-purple-50/90 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 rounded-xl text-purple-900 dark:text-purple-200 text-xs flex items-center gap-3 shadow-xs">
+          <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-bold shrink-0">
+            Modo Consulta
+          </div>
+          <div>
+            <div className="font-bold text-sm text-purple-950 dark:text-purple-100">
+              Acesso de Visitante (Somente Leitura)
+            </div>
+            <div className="text-[11px] text-purple-700/80 dark:text-purple-300">
+              Você está visualizando os dados técnicos do processo. O registro de alterações e criação de processos estão desativados para o perfil visitante.
             </div>
           </div>
         </div>
@@ -475,14 +498,16 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                       Formatado: <strong className="text-neutral-800 dark:text-neutral-200">{formatarCNPJ(cnpj)}</strong>
                     </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setIsAddCnpjModalOpen(true)}
-                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[#E30613] hover:underline"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Adicionar outro CNPJ</span>
-                  </button>
+                  {!isVisitante && (
+                    <button
+                      type="button"
+                      onClick={() => setIsAddCnpjModalOpen(true)}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-[#E30613] hover:underline cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Adicionar outro CNPJ</span>
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -519,16 +544,18 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                   );
                 })}
 
-                {/* Button card to add new CNPJ */}
-                <button
-                  type="button"
-                  onClick={() => setIsAddCnpjModalOpen(true)}
-                  className="p-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/30 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-all flex flex-col items-center justify-center gap-1 text-center group"
-                >
-                  <Plus className="w-4 h-4 text-[#E30613] group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-medium">+ Outro CNPJ</span>
-                  <span className="text-[10px] text-neutral-400">Cadastrar novo</span>
-                </button>
+                {/* Button card to add new CNPJ - Bloqueado para Visitante */}
+                {!isVisitante && (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddCnpjModalOpen(true)}
+                    className="p-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/30 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-all flex flex-col items-center justify-center gap-1 text-center group"
+                  >
+                    <Plus className="w-4 h-4 text-[#E30613] group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-medium">+ Outro CNPJ</span>
+                    <span className="text-[10px] text-neutral-400">Cadastrar novo</span>
+                  </button>
+                )}
               </div>
               <p className="text-[11px] text-neutral-400">
                 Selecione o CNPJ da Shineray responsável pela solicitação e emissão no Infoserv/IBAMA.
@@ -679,17 +706,56 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
             {/* Campo 7: Quantidade */}
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                7. Quantidade de Veículos
+                7. Quantidade de Veículos <span className="text-[#E30613]">*</span>
               </label>
               {qtdConfig.isOmitted ? (
                 <div className="px-3 py-2 rounded-lg border border-dashed border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-neutral-400 text-xs">
                   Não aplicável para {tipo} (campo omitido)
                 </div>
+              ) : tipo === 'LCM Especial' ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {['1', '2'].map((val) => {
+                      const isSelected = quantidade === val || (!quantidade && val === '1');
+                      return (
+                        <button
+                          key={val}
+                          type="button"
+                          disabled={isVisitante}
+                          onClick={() => setQuantidade(val)}
+                          className={`py-2.5 px-3.5 rounded-xl border text-center transition-all flex items-center justify-between cursor-pointer ${
+                            isSelected
+                              ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 border-neutral-900 dark:border-white shadow-xs ring-2 ring-[#E30613]/30 font-bold'
+                              : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700'
+                          } ${isVisitante ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-base font-extrabold">{val}</span>
+                            <span className="text-xs font-semibold">
+                              {val === '1' ? '1 Veículo' : '2 Veículos'}
+                            </span>
+                          </div>
+                          {isSelected && (
+                            <div className="p-0.5 rounded-full bg-[#E30613] text-white">
+                              <Check className="w-3 h-3" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    Para <strong>LCM Especial</strong>, a quantidade é estritamente de <strong>1</strong> ou <strong>2</strong> veículos (escolha direta).
+                  </p>
+                </div>
               ) : qtdConfig.isSelect ? (
                 <select
                   value={quantidade}
+                  disabled={isVisitante}
                   onChange={(e) => setQuantidade(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                  className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
+                    isVisitante ? 'opacity-70 cursor-not-allowed' : ''
+                  }`}
                 >
                   {qtdConfig.options.map((opt) => (
                     <option key={opt} value={opt}>
@@ -700,17 +766,22 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
               ) : (
                 <input
                   type="text"
+                  disabled={isVisitante}
                   value={quantidade}
                   onChange={(e) => setQuantidade(e.target.value)}
                   placeholder="Informe a quantidade de veículos"
-                  className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                  className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
+                    isVisitante ? 'opacity-70 cursor-not-allowed' : ''
+                  }`}
                 />
               )}
-              <p className="text-[11px] text-neutral-400">
-                {qtdConfig.isOmitted
-                  ? 'Campo desnecessário para este tipo de homologação.'
-                  : 'Regra de quantidade baseada no enquadramento.'}
-              </p>
+              {tipo !== 'LCM Especial' && (
+                <p className="text-[11px] text-neutral-400">
+                  {qtdConfig.isOmitted
+                    ? 'Campo desnecessário para este tipo de homologação.'
+                    : 'Regra de quantidade baseada no enquadramento.'}
+                </p>
+              )}
             </div>
 
             {/* Campo 8: Tipo de Veículo */}
@@ -897,32 +968,36 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/70 dark:bg-neutral-800 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+            className="px-4 py-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/70 dark:bg-neutral-800 dark:hover:bg-neutral-700 rounded-lg transition-colors cursor-pointer"
           >
-            Cancelar
+            {isVisitante ? 'Fechar Visualização' : 'Cancelar'}
           </button>
-          <button
-            type="submit"
-            className="px-5 py-2 text-xs font-medium text-white bg-[#E30613] hover:bg-[#c70510] rounded-lg transition-colors shadow-2xs flex items-center gap-1.5"
-          >
-            <FileCheck className="w-3.5 h-3.5" />
-            <span>{initialData ? 'Atualizar Processo' : 'Salvar Processo'}</span>
-          </button>
+          {!isVisitante && (
+            <button
+              type="submit"
+              className="px-5 py-2 text-xs font-medium text-white bg-[#E30613] hover:bg-[#c70510] rounded-lg transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <FileCheck className="w-3.5 h-3.5" />
+              <span>{initialData ? 'Atualizar Processo' : 'Salvar Processo'}</span>
+            </button>
+          )}
         </div>
       </form>
 
       {/* Modal para adicionar novo CNPJ */}
-      <AddCnpjModal
-        isOpen={isAddCnpjModalOpen}
-        onClose={() => setIsAddCnpjModalOpen(false)}
-        onSave={(newCnpj) => {
-          if (onAddCnpj) {
-            onAddCnpj(newCnpj);
-          }
-          setCnpj(newCnpj.raw);
-        }}
-        existingCnpjs={cnpjs}
-      />
+      {!isVisitante && (
+        <AddCnpjModal
+          isOpen={isAddCnpjModalOpen}
+          onClose={() => setIsAddCnpjModalOpen(false)}
+          onSave={(newCnpj) => {
+            if (onAddCnpj) {
+              onAddCnpj(newCnpj);
+            }
+            setCnpj(newCnpj.raw);
+          }}
+          existingCnpjs={cnpjs}
+        />
+      )}
     </div>
   );
 };

@@ -34,6 +34,7 @@ interface HomeScreenProps {
   onNavigateToProcessos: (subTab?: ProcessosSubTab, tipo?: ProcessoTipo) => void;
   onNavigateToCadastro: () => void;
   onSelectProcesso: (processo: Processo) => void;
+  isVisitante?: boolean;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -41,6 +42,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToProcessos,
   onNavigateToCadastro,
   onSelectProcesso,
+  isVisitante = false,
 }) => {
   const totalProcessos = processos.length;
 
@@ -289,25 +291,47 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </h3>
 
             <div className="space-y-2">
-              <button
-                onClick={onNavigateToCadastro}
-                className="w-full p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 text-left transition-colors flex items-center justify-between group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 rounded-md">
-                    <Plus className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-neutral-900 dark:text-white">
-                      Cadastrar Novo Processo
+              {isVisitante ? (
+                <button
+                  onClick={() => onNavigateToProcessos('comparacao_prazos')}
+                  className="w-full p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 text-left transition-colors flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 rounded-md">
+                      <Timer className="w-4 h-4" />
                     </div>
-                    <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                      Regras SL/SD, MMV e enquadramento
+                    <div>
+                      <div className="text-xs font-semibold text-neutral-900 dark:text-white">
+                        Médias e Prazos de Emissão
+                      </div>
+                      <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                        Comparativos CETESB vs IMT
+                      </div>
                     </div>
                   </div>
-                </div>
-                <ArrowRight className="w-4 h-4 text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors" />
-              </button>
+                  <ArrowRight className="w-4 h-4 text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors" />
+                </button>
+              ) : (
+                <button
+                  onClick={onNavigateToCadastro}
+                  className="w-full p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 text-left transition-colors flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 rounded-md">
+                      <Plus className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-neutral-900 dark:text-white">
+                        Cadastrar Novo Processo
+                      </div>
+                      <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                        Regras SL/SD, MMV e enquadramento
+                      </div>
+                    </div>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors" />
+                </button>
+              )}
 
               <button
                 onClick={() => onNavigateToProcessos('para_revalidacao')}
