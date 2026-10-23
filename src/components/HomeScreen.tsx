@@ -25,6 +25,7 @@ import {
   Pause,
   AlertCircle,
   Timer,
+  Cloud,
 } from 'lucide-react';
 import { RevalidationAlertBanner } from './RevalidationAlertBanner';
 import { InProgressCarousel } from './InProgressCarousel';
@@ -34,6 +35,7 @@ interface HomeScreenProps {
   onNavigateToProcessos: (subTab?: ProcessosSubTab, tipo?: ProcessoTipo) => void;
   onNavigateToCadastro: () => void;
   onSelectProcesso: (processo: Processo) => void;
+  onOpenMigration?: () => void;
   isVisitante?: boolean;
 }
 
@@ -42,6 +44,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToProcessos,
   onNavigateToCadastro,
   onSelectProcesso,
+  onOpenMigration,
   isVisitante = false,
 }) => {
   const totalProcessos = processos.length;
@@ -173,15 +176,28 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </p>
           </div>
 
-          <button
-            onClick={() => onNavigateToProcessos('comparacao_prazos')}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-750 text-neutral-800 dark:text-neutral-100 border border-neutral-200 dark:border-neutral-700 transition-all shadow-xs hover:shadow-sm cursor-pointer self-start sm:self-center"
-          >
-            <div className="w-2 h-2 rounded-full bg-[#E30613]" />
-            <Timer className="w-3.5 h-3.5 text-[#E30613]" />
-            <span>Médias e Prazos (Envio → Emissão)</span>
-            <ArrowRight className="w-3 h-3 text-neutral-400" />
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-center flex-wrap">
+            <button
+              onClick={() => onNavigateToProcessos('comparacao_prazos')}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-750 text-neutral-800 dark:text-neutral-100 border border-neutral-200 dark:border-neutral-700 transition-all shadow-xs hover:shadow-sm cursor-pointer"
+            >
+              <div className="w-2 h-2 rounded-full bg-[#E30613]" />
+              <Timer className="w-3.5 h-3.5 text-[#E30613]" />
+              <span>Médias e Prazos</span>
+              <ArrowRight className="w-3 h-3 text-neutral-400" />
+            </button>
+
+            {onOpenMigration && (
+              <button
+                onClick={onOpenMigration}
+                title="Migração entre nuvens: exporte ou importe todos os processos para outra hospedagem ou nuvem"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700 transition-all shadow-xs hover:shadow-sm cursor-pointer"
+              >
+                <Cloud className="w-3.5 h-3.5 text-[#E30613]" />
+                <span>Migração Nuvem</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* 5 Cards Grid */}

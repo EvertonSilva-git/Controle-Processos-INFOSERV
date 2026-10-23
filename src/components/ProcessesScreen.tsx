@@ -36,6 +36,7 @@ import {
   Eye,
   ArrowRight,
   RefreshCw,
+  Cloud,
 } from 'lucide-react';
 
 interface ProcessesScreenProps {
@@ -55,6 +56,7 @@ interface ProcessesScreenProps {
   searchTerm?: string;
   onSearchTermChange?: (term: string) => void;
   onExportExcel?: () => void;
+  onOpenMigration?: () => void;
   currentUser?: string | null;
   isVisitante?: boolean;
 }
@@ -76,6 +78,7 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
   searchTerm: externalSearchTerm,
   onSearchTermChange,
   onExportExcel,
+  onOpenMigration,
   currentUser,
   isVisitante = false,
 }) => {
@@ -610,6 +613,19 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
               <option value="validade">Validade (Revalidação)</option>
               <option value="solicitacao">Nº Solicitação</option>
             </select>
+
+            {/* Migração / Backup entre Nuvens */}
+            {onOpenMigration && (
+              <button
+                type="button"
+                onClick={onOpenMigration}
+                title="Migração entre nuvens: exporte ou importe todos os processos para outra hospedagem ou servidor"
+                className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-750 focus:outline-none transition-colors inline-flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0"
+              >
+                <Cloud className="w-3.5 h-3.5 text-[#E30613]" />
+                <span className="hidden sm:inline">Migração</span>
+              </button>
+            )}
           </div>
         </div>
 

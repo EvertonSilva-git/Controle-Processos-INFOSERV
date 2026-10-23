@@ -9,7 +9,13 @@ import { ProcessFormScreen } from './components/ProcessFormScreen';
 import { ProcessesScreen } from './components/ProcessesScreen';
 import { ObservationModal } from './components/ObservationModal';
 import { EditProcessModal } from './components/EditProcessModal';
-import { Eye, EyeOff, Lock, ArrowLeft, KeyRound } from 'lucide-react';
+import { MigrationModal } from './components/MigrationModal';
+import {
+  MigrationPackage,
+  mergeMigrationProcessos,
+  mergeMigrationCnpjs,
+} from './utils/migrationData';
+import { Eye, EyeOff, Lock, ArrowLeft, KeyRound, Cloud } from 'lucide-react';
 
 const STORAGE_KEY = 'shineray_infoserv_processos_v1';
 const INITIALIZED_FLAG = 'shineray_infoserv_initialized_v2';
@@ -254,6 +260,7 @@ export default function App() {
   // Modals
   const [observacaoModalProcesso, setObservacaoModalProcesso] = useState<Processo | null>(null);
   const [editModalProcesso, setEditModalProcesso] = useState<Processo | null>(null);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
 
   const handleSaveProcesso = (novoOuAtualizado: Processo) => {
     if (currentUser === 'Visitante') {
@@ -369,6 +376,29 @@ export default function App() {
 
   const handleExportExcel = () => {
     exportarProcessosExcel(processos);
+  };
+
+  const handleApplyMigration = (pkg: MigrationPackage, strategy: 'replace' | 'merge') => {
+    if (currentUser === 'Visitante') {
+      alert('Modo Visitante: você não possui permissão para aplicar migrações.');
+      return;
+    }
+
+    const novosProcessos = mergeMigrationProcessos(processos, pkg.processos, strategy);
+    const novosCnpjs = mergeMigrationCnpjs(cnpjList, pkg.cnpjs);
+
+    setProcessos(novosProcessos);
+    setCnpjList(novosCnpjs);
+
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(novosProcessos));
+      localStorage.setItem(INITIALIZED_FLAG, 'true');
+      localStorage.setItem(CNPJ_STORAGE_KEY, JSON.stringify(novosCnpjs));
+    } catch (err) {
+      console.error('Erro ao salvar migração no localStorage:', err);
+    }
+
+    setCurrentTab('processos');
   };
 
   const handleCreateExtensao = (original: Processo) => {
@@ -689,6 +719,7 @@ export default function App() {
         totalProcessos={processos.length}
         totalRevalidar={totalRevalidar}
         onExportExcel={handleExportExcel}
+        onOpenMigration={() => setIsMigrationModalOpen(true)}
         onResetData={handleResetData}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -724,6 +755,7 @@ export default function App() {
             onSelectProcesso={(p) => {
               setObservacaoModalProcesso(p);
             }}
+            onOpenMigration={() => setIsMigrationModalOpen(true)}
             isVisitante={isVisitante}
           />
         )}
@@ -783,6 +815,7 @@ export default function App() {
             searchTerm={searchQuery}
             onSearchTermChange={setSearchQuery}
             onExportExcel={handleExportExcel}
+            onOpenMigration={() => setIsMigrationModalOpen(true)}
             currentUser={currentUser}
             isVisitante={isVisitante}
           />
@@ -808,6 +841,16 @@ export default function App() {
         onAddCnpj={handleAddCnpj}
         currentUser={currentUser}
         isVisitante={isVisitante}
+      />
+
+      <MigrationModal
+        isOpen={isMigrationModalOpen}
+        onClose={() => setIsMigrationModalOpen(false)}
+        processos={processos}
+        cnpjList={allCnpjs}
+        currentUser={currentUser}
+        isVisitante={isVisitante}
+        onApplyMigration={handleApplyMigration}
       />
 
       <footer className="mt-auto border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#111827] py-6 transition-colors">

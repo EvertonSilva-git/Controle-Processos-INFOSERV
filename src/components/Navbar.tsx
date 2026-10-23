@@ -16,6 +16,7 @@ import {
   FileSpreadsheet,
   UserCheck,
   Eye,
+  Cloud,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -24,6 +25,7 @@ interface NavbarProps {
   totalProcessos: number;
   totalRevalidar: number;
   onExportExcel: () => void;
+  onOpenMigration?: () => void;
   onResetData: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
@@ -42,6 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   totalProcessos,
   totalRevalidar,
   onExportExcel,
+  onOpenMigration,
   onResetData,
   theme,
   onToggleTheme,
@@ -373,6 +376,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span className="text-[11px] font-semibold hidden md:inline">Excel</span>
             </button>
+
+            {/* Botão de Migração entre Nuvens / Backup Completo */}
+            {onOpenMigration && (
+              <button
+                onClick={onOpenMigration}
+                title="Migração entre nuvens: exporte ou importe todos os processos para outra hospedagem ou servidor"
+                className="h-8 px-2 sm:px-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0"
+              >
+                <Cloud className="w-3.5 h-3.5 text-[#E30613]" />
+                <span className="text-[11px] font-semibold hidden md:inline">Nuvem</span>
+              </button>
+            )}
 
             {/* Reset data button - apenas para analistas autenticados */}
             {!isVisitante && (
