@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Processo } from '../types/process';
-import { calcularDiasRestantes, formatarDataBR } from '../utils/processCalculations';
+import { calcularDiasRestantes, formatarDataBR, obterDataVencimentoEfetiva } from '../utils/processCalculations';
 import { AlertCircle, ChevronRight, X, ArrowRight, Clock } from 'lucide-react';
 
 interface RevalidationAlertBannerProps {
@@ -23,13 +23,14 @@ export const RevalidationAlertBanner: React.FC<RevalidationAlertBannerProps> = (
 
   // Find the most critical one (fewest days remaining)
   const sorted = [...processosRevalidar].sort((a, b) => {
-    const dA = calcularDiasRestantes(a.dataValidade) ?? 999;
-    const dB = calcularDiasRestantes(b.dataValidade) ?? 999;
+    const dA = calcularDiasRestantes(obterDataVencimentoEfetiva(a.dataValidade, a.novaDataVencimento)) ?? 999;
+    const dB = calcularDiasRestantes(obterDataVencimentoEfetiva(b.dataValidade, b.novaDataVencimento)) ?? 999;
     return dA - dB;
   });
 
   const maisCritico = sorted[0];
-  const menorPrazo = calcularDiasRestantes(maisCritico.dataValidade);
+  const dataValidadeCritica = obterDataVencimentoEfetiva(maisCritico.dataValidade, maisCritico.novaDataVencimento);
+  const menorPrazo = calcularDiasRestantes(dataValidadeCritica);
 
   return (
     <div className="mb-6 rounded-xl bg-amber-50/90 dark:bg-amber-950/25 border border-amber-200/90 dark:border-amber-800/40 text-neutral-800 dark:text-neutral-200 shadow-sm overflow-hidden transition-all">
@@ -58,7 +59,7 @@ export const RevalidationAlertBanner: React.FC<RevalidationAlertBannerProps> = (
             <p className="text-xs text-neutral-600 dark:text-neutral-300 mt-1 max-w-2xl leading-relaxed">
               {processosRevalidar.length === 1 ? (
                 <>
-                  O processo <strong className="font-mono text-neutral-900 dark:text-white">{maisCritico.numeroSolicitacao}</strong> ({maisCritico.mmv}) tem validade até <strong>{formatarDataBR(maisCritico.dataValidade)}</strong> {menorPrazo !== null ? `(${menorPrazo <= 0 ? 'vencida' : `${menorPrazo} dias restantes`})` : ''}.
+                  O processo <strong className="font-mono text-neutral-900 dark:text-white">{maisCritico.numeroSolicitacao}</strong> ({maisCritico.mmv}) tem validade até <strong>{formatarDataBR(dataValidadeCritica)}</strong> {menorPrazo !== null ? `(${menorPrazo <= 0 ? 'vencida' : `${menorPrazo} dias restantes`})` : ''}.
                 </>
               ) : (
                 <>
@@ -115,7 +116,8 @@ export const RevalidationAlertBanner: React.FC<RevalidationAlertBannerProps> = (
         <div className="border-t border-amber-200/70 dark:border-amber-800/40 bg-white/60 dark:bg-neutral-900/60 p-3 sm:p-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
             {sorted.map((proc) => {
-              const dias = calcularDiasRestantes(proc.dataValidade);
+              const dataEfetiva = obterDataVencimentoEfetiva(proc.dataValidade, proc.novaDataVencimento);
+              const dias = calcularDiasRestantes(dataEfetiva);
               const ehCritico = dias !== null && dias <= 30;
 
               return (
@@ -145,7 +147,7 @@ export const RevalidationAlertBanner: React.FC<RevalidationAlertBannerProps> = (
 
                   <div className="flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
                     <span>{proc.tipo}</span>
-                    <span>Vence em {formatarDataBR(proc.dataValidade)}</span>
+                    <span>Vence em {formatarDataBR(dataEfetiva)}</span>
                   </div>
                 </div>
               );

@@ -60,7 +60,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   // Para revalidação: validity expires within 61 days
   const revalidacaoProcessos = useMemo(
-    () => processos.filter((p) => estaParaRevalidar(p.dataValidade, p.situacao)),
+    () => processos.filter((p) => estaParaRevalidar(p.dataValidade, p.situacao, p.novaDataVencimento)),
     [processos]
   );
 

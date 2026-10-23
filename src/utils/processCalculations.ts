@@ -1,4 +1,4 @@
-import { ProcessoTipo, Procedencia, TipoVeiculo } from '../types/process';
+import { ProcessoTipo, Procedencia, TipoVeiculo, SituacaoProcesso } from '../types/process';
 
 /**
  * Calculates remaining days from the current date until the expiration date.
@@ -19,12 +19,29 @@ export function calcularDiasRestantes(dataValidade?: string): number | null {
 }
 
 /**
- * Verifies if a process license is up for revalidation (within 61 days)
+ * Retorna a data de vencimento efetiva da licença:
+ * Caso exista novaDataVencimento (pós-revalidação), ela prevalece; caso contrário, dataValidade.
  */
-export function estaParaRevalidar(dataValidade?: string, situacao?: string): boolean {
-  if (!dataValidade) return false;
+export function obterDataVencimentoEfetiva(
+  dataValidade?: string,
+  novaDataVencimento?: string
+): string | undefined {
+  return novaDataVencimento || dataValidade;
+}
+
+/**
+ * Verifies if a process license is up for revalidation (within 61 days)
+ * Considera novaDataVencimento caso tenha sido informada.
+ */
+export function estaParaRevalidar(
+  dataValidade?: string,
+  situacao?: string,
+  novaDataVencimento?: string
+): boolean {
+  const dataEfetiva = novaDataVencimento || dataValidade;
+  if (!dataEfetiva) return false;
   // Usually applies to issued licenses or processes with an active license date
-  const dias = calcularDiasRestantes(dataValidade);
+  const dias = calcularDiasRestantes(dataEfetiva);
   if (dias === null) return false;
   // Within 61 days (and could be positive or slightly past)
   return dias <= 61;
@@ -170,8 +187,32 @@ export function obterTiposVeiculoPermitidos(tipo: ProcessoTipo): TipoVeiculo[] {
 
 /**
  * Returns allowed quantity options (if selectable) for process type
+/**
+ * Verifica se um veículo de LCM Especial exige digitação manual da quantidade.
+ * Conforme regra: Minimoto, Motocicleta de competição, Motocicleta fora de estrada,
+ * Triciclo/Quadriciclo fora de estrada.
  */
-export function obterOpcoesQuantidade(tipo: ProcessoTipo): {
+export function isLcmEspecialQuantidadeManual(tipoVeiculo?: TipoVeiculo | string): boolean {
+  if (!tipoVeiculo) return false;
+  const normalizado = tipoVeiculo
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return (
+    normalizado.includes('minimoto') ||
+    normalizado.includes('competicao') ||
+    normalizado.includes('fora de estrada')
+  );
+}
+
+/**
+ * Returns allowed quantity options (if selectable) for process type
+ */
+export function obterOpcoesQuantidade(
+  tipo: ProcessoTipo,
+  tipoVeiculo?: TipoVeiculo
+): {
   isSelect: boolean;
   isInput: boolean;
   isOmitted: boolean;
@@ -200,6 +241,14 @@ export function obterOpcoesQuantidade(tipo: ProcessoTipo): {
         options: ['Restrita (3 a 50)', 'Ilimitada (50+)'],
       };
     case 'LCM Especial':
+      if (isLcmEspecialQuantidadeManual(tipoVeiculo)) {
+        return {
+          isSelect: false,
+          isInput: true,
+          isOmitted: false,
+          options: [],
+        };
+      }
       return {
         isSelect: true,
         isInput: false,
@@ -228,69 +277,133 @@ export function obterOpcoesQuantidade(tipo: ProcessoTipo): {
 /**
  * Monta o MMV unificado a partir dos campos separados: Marca, Modelo e Veículo/Versão.
  * Se Importado, adiciona "I/" no início.
- * Exemplo: I/SHINERAY/SBM 500 ou SHINERAY/WORKER 125
+/**
+ * Monta o MMV unificado a partir dos campos: Marca, Modelo, Versão principal e Versões Adicionais opcionais.
+ * Se Importado, adiciona "I/" no início.
+ * Exemplo de versões únicas: SHINERAY/WORKER 125
+ * Exemplo de múltiplas versões: SHINERAY/WORKER 125 / 125 SPORT
  */
 export function montarMMV(
   procedencia: Procedencia,
   marca: string,
   modelo: string,
-  veiculo: string
+  veiculo: string,
+  versoesAdicionais?: string[]
 ): string {
   const prefixo = procedencia === 'Importado' ? 'I/' : '';
   const m = (marca || '').trim().toUpperCase();
   const mod = (modelo || '').trim().toUpperCase();
-  const v = (veiculo || '').trim().toUpperCase();
 
+  // Consolida versões sem duplicar vazios
+  const listaVersoes: string[] = [];
+  if (veiculo && veiculo.trim()) {
+    // Caso veiculo já venha concatenado com barras
+    const partes = veiculo.split('/').map((s) => s.trim().toUpperCase()).filter(Boolean);
+    listaVersoes.push(...partes);
+  }
+  if (versoesAdicionais && Array.isArray(versoesAdicionais)) {
+    versoesAdicionais.forEach((va) => {
+      const vTrim = (va || '').trim().toUpperCase();
+      if (vTrim && !listaVersoes.includes(vTrim)) {
+        listaVersoes.push(vTrim);
+      }
+    });
+  }
+
+  const v = listaVersoes.join(' / ');
+
+  // Se a versão estiver em branco, mantém apenas Marca e Modelo sem barra extra ou texto residual
   if (m && mod) {
-    return `${prefixo}${m}/${mod}${v ? ' ' + v : ''}`;
+    return v ? `${prefixo}${m}/${mod} / ${v}` : `${prefixo}${m}/${mod}`;
   }
   if (m) {
-    return `${prefixo}${m}${v ? ' ' + v : ''}`;
+    return v ? `${prefixo}${m} / ${v}` : `${prefixo}${m}`;
   }
   if (mod) {
-    return `${prefixo}${mod}${v ? ' ' + v : ''}`;
+    return v ? `${prefixo}${mod} / ${v}` : `${prefixo}${mod}`;
   }
   return v ? `${prefixo}${v}` : '';
 }
 
 /**
- * Decompõe um MMV existente em Marca, Modelo e Veículo/Versão.
+ * Decompõe um MMV existente em Marca, Modelo, Veículo/Versão e lista de versões.
+ * Regra: Delimitação estrita por barras ('/').
+ * Se não houver versão preenchida ou se houver apenas Marca/Modelo, a versão permanece estritamente em branco.
+ * Nunca joga o nome do modelo na versão.
  */
 export function decomporMMV(
   mmv: string,
   procedencia?: Procedencia
-): { marca: string; modelo: string; veiculo: string } {
-  if (!mmv) return { marca: '', modelo: '', veiculo: '' };
+): { marca: string; modelo: string; veiculo: string; versoes: string[] } {
+  if (!mmv) return { marca: '', modelo: '', veiculo: '', versoes: [] };
 
   let limpo = mmv.trim();
   // Remove prefixo I/ se presente
   if (limpo.startsWith('I/')) {
-    limpo = limpo.slice(2);
+    limpo = limpo.slice(2).trim();
   }
 
-  const partes = limpo.split('/');
-  if (partes.length >= 2) {
-    const marca = partes[0].trim();
-    const resto = partes.slice(1).join('/').trim();
-    // Separa modelo do restante do veículo/versão
-    const espacoIdx = resto.indexOf(' ');
-    if (espacoIdx > 0) {
-      const modelo = resto.substring(0, espacoIdx).trim();
-      const veiculo = resto.substring(espacoIdx + 1).trim();
-      return { marca, modelo, veiculo };
-    }
-    return { marca, modelo: resto, veiculo: '' };
+  // MMV é tipicamente: MARCA/MODELO ou MARCA/MODELO / VERSAO 1 / VERSAO 2
+  // Separamos as partes pelo caractere '/'
+  const partes = limpo.split('/').map((s) => s.trim()).filter(Boolean);
+
+  if (partes.length === 0) {
+    return { marca: '', modelo: '', veiculo: '', versoes: [] };
   }
 
-  // Se não tem barra
-  const espacoIdx = limpo.indexOf(' ');
-  if (espacoIdx > 0) {
+  if (partes.length === 1) {
+    // Apenas modelo ou MMV sem barra: versão fica estritamente em branco
+    return { marca: '', modelo: partes[0], veiculo: '', versoes: [] };
+  }
+
+  if (partes.length === 2) {
+    // Formato padrão: MARCA / MODELO (sem versão cadastrada -> versão em branco)
     return {
-      marca: '',
-      modelo: limpo.substring(0, espacoIdx).trim(),
-      veiculo: limpo.substring(espacoIdx + 1).trim(),
+      marca: partes[0],
+      modelo: partes[1],
+      veiculo: '',
+      versoes: [],
     };
   }
 
-  return { marca: '', modelo: limpo, veiculo: '' };
+  // 3 ou mais partes: MARCA / MODELO / VERSÃO 1 (/ VERSÃO 2 ...)
+  const marca = partes[0];
+  const modelo = partes[1];
+  const versoes = partes.slice(2);
+  return {
+    marca,
+    modelo,
+    veiculo: versoes.join(' / '),
+    versoes,
+  };
+}
+
+/**
+ * Retorna as situações permitidas para o processo.
+ * Regra do negócio: Para Dispensa e para Extensões (tipo 'Dispensa', tipo 'Extensão' ou isExtensao === true),
+ * são permitidas estritamente:
+ * 1. 'Em edição'
+ * 2. 'Encaminhada para o ibama'
+ * 3. 'Licença/Certidão emitida'
+ * Para os demais tipos de homologação, todas as situações do fluxo regulatório são permitidas.
+ */
+export function obterSituacoesPermitidas(
+  tipo: ProcessoTipo,
+  isExtensao?: boolean
+): SituacaoProcesso[] {
+  if (tipo === 'Dispensa' || tipo === 'Extensão' || isExtensao) {
+    return [
+      'Em edição',
+      'Encaminhada para o ibama',
+      'Licença/Certidão emitida',
+    ];
+  }
+  return [
+    'Em edição',
+    'Encaminhada para o ibama',
+    'Em análise pelo Analista do ATC',
+    'A pagar',
+    'Para correção',
+    'Licença/Certidão emitida',
+  ];
 }

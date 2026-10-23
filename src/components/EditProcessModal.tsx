@@ -8,6 +8,7 @@ interface EditProcessModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (processo: Processo) => void;
+  onDelete?: (processoId: string) => void;
   cnpjs?: CnpjOption[];
   onAddCnpj?: (newCnpj: CnpjOption) => void;
   currentUser?: string | null;
@@ -19,6 +20,7 @@ export const EditProcessModal: React.FC<EditProcessModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  onDelete,
   cnpjs,
   onAddCnpj,
   currentUser,
@@ -39,7 +41,7 @@ export const EditProcessModal: React.FC<EditProcessModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-800 rounded-lg transition-colors"
+            className="p-1.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -54,6 +56,12 @@ export const EditProcessModal: React.FC<EditProcessModalProps> = ({
             isVisitante={isVisitante}
             onSave={(updated) => {
               onSave(updated);
+              onClose();
+            }}
+            onDelete={(id) => {
+              if (onDelete) {
+                onDelete(id);
+              }
               onClose();
             }}
             onCancel={onClose}

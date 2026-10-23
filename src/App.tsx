@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Processo, ProcessoTipo, ProcessosSubTab, CnpjOption, DEFAULT_CNPJ_OPTIONS, formatarCNPJ } from './types/process';
+import { Processo, ProcessoTipo, ProcessosSubTab, CnpjOption, DEFAULT_CNPJ_OPTIONS, formatarCNPJ, SituacaoProcesso } from './types/process';
 import { INITIAL_PROCESSOS } from './data/initialData';
 import { estaParaRevalidar, decomporMMV } from './utils/processCalculations';
 import { exportarProcessosExcel } from './utils/exportExcel';
@@ -12,13 +12,41 @@ import { EditProcessModal } from './components/EditProcessModal';
 import { Eye, EyeOff, Lock, ArrowLeft, KeyRound } from 'lucide-react';
 
 const STORAGE_KEY = 'shineray_infoserv_processos_v1';
+const INITIALIZED_FLAG = 'shineray_infoserv_initialized_v2';
 const CNPJ_STORAGE_KEY = 'shineray_infoserv_cnpjs_v1';
 const THEME_STORAGE_KEY = 'shineray_infoserv_theme';
-const USER_STORAGE_KEY = 'shineray_infoserv_user'; // Nova chave para o login
+const USER_STORAGE_KEY = 'shineray_infoserv_user';
 
 const USER_PASSWORDS: Record<string, string> = {
   'Everton Silva': 'El@2026#',
   'Luca Andrade': '@Arapuca123',
+};
+
+// Normaliza processos garantindo situações válidas e versão estritamente em branco quando não preenchida
+export const normalizarSituacaoProcesso = (p: Processo): Processo => {
+  const proc = { ...p };
+
+  // Regra do usuário: Se versão for idêntica ao modelo (erro legado), limpa para deixar estritamente em branco
+  if (proc.veiculo && proc.modelo && proc.veiculo.trim().toUpperCase() === proc.modelo.trim().toUpperCase()) {
+    proc.veiculo = '';
+    proc.versoes = [];
+  }
+  if (proc.versoes && proc.versoes.length === 1 && proc.modelo && proc.versoes[0].trim().toUpperCase() === proc.modelo.trim().toUpperCase()) {
+    proc.versoes = [];
+    proc.veiculo = '';
+  }
+
+  if (proc.tipo === 'Dispensa' || proc.tipo === 'Extensão' || proc.isExtensao) {
+    const permitidas: SituacaoProcesso[] = [
+      'Em edição',
+      'Encaminhada para o ibama',
+      'Licença/Certidão emitida',
+    ];
+    if (!permitidas.includes(proc.situacao)) {
+      proc.situacao = 'Encaminhada para o ibama';
+    }
+  }
+  return proc;
 };
 
 export default function App() {
@@ -75,17 +103,31 @@ export default function App() {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
-  // Load initial state from localStorage or seed
+  // 1. CARGA INICIAL: Lê a versão mais recente do AUTO-SAVE no localStorage
+  // Garante que exclusões sejam respeitadas mesmo que a lista esteja vazia!
   const [processos, setProcessos] = useState<Processo[]>(() => {
     try {
+      const isInit = localStorage.getItem(INITIALIZED_FLAG);
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Se o usuário já salvou dados (inclusive lista vazia após excluir), mantém exatamente o que foi salvo
+          return parsed.map(normalizarSituacaoProcesso);
+        }
       }
+      // Se já foi inicializado alguma vez mas a chave estava vazia, não recarrega processos padrão
+      if (isInit === 'true') {
+        return [];
+      }
+      // Apenas na primeiríssima execução (sem flag e sem dados), inicia e grava a flag
+      localStorage.setItem(INITIALIZED_FLAG, 'true');
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_PROCESSOS));
+      return INITIAL_PROCESSOS.map(normalizarSituacaoProcesso);
     } catch (e) {
-      console.error('Erro ao ler localStorage', e);
+      console.error('Erro ao ler autosave do localStorage', e);
+      return [];
     }
-    return INITIAL_PROCESSOS;
   });
 
   // Load and manage CNPJs
@@ -104,37 +146,28 @@ export default function App() {
     return DEFAULT_CNPJ_OPTIONS;
   });
 
-  // Fetch shared processes and CNPJs from server
+  // 2. AUTO-SAVE EM TEMPO REAL: Salva no localStorage sempre que houver alteração
   useEffect(() => {
-    const fetchGlobalServerData = async () => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(processos));
+      localStorage.setItem(INITIALIZED_FLAG, 'true');
+    } catch (err) {
+      console.error('Erro no AutoSave imediato:', err);
+    }
+  }, [processos]);
+
+  // 3. AUTO-SAVE PERIÓDICO A CADA 10 SEGUNDOS (salvamento automático a cada 10s)
+  useEffect(() => {
+    const timer = setInterval(() => {
       try {
-        const procRes = await fetch('/api/processos');
-        if (procRes.ok) {
-          const procData = await procRes.json();
-          if (Array.isArray(procData.processos) && procData.processos.length > 0) {
-            setProcessos(procData.processos);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(procData.processos));
-          }
-        }
-
-        const cnpjRes = await fetch('/api/cnpjs');
-        if (cnpjRes.ok) {
-          const cnpjData = await cnpjRes.json();
-          if (Array.isArray(cnpjData.cnpjs) && cnpjData.cnpjs.length > 0) {
-            setCnpjList(cnpjData.cnpjs);
-            localStorage.setItem(CNPJ_STORAGE_KEY, JSON.stringify(cnpjData.cnpjs));
-          }
-        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(processos));
+        localStorage.setItem(INITIALIZED_FLAG, 'true');
       } catch (err) {
-        console.warn('API global indisponível ou offline. Usando cache local:', err);
+        console.error('Erro no AutoSave periódico de 10s:', err);
       }
-    };
-
-    fetchGlobalServerData();
-
-    const interval = setInterval(fetchGlobalServerData, 15000);
-    return () => clearInterval(interval);
-  }, []);
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [processos]);
 
   const handleAddCnpj = (newCnpj: CnpjOption) => {
     if (currentUser === 'Visitante') {
@@ -152,11 +185,6 @@ export default function App() {
       }
       try {
         localStorage.setItem(CNPJ_STORAGE_KEY, JSON.stringify(updated));
-        fetch('/api/cnpjs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cnpjs: updated }),
-        }).catch((e) => console.warn('Erro ao salvar CNPJ no servidor:', e));
       } catch (err) {
         console.error(err);
       }
@@ -173,11 +201,6 @@ export default function App() {
       const updated = prev.filter((c) => c.raw !== rawCnpj);
       try {
         localStorage.setItem(CNPJ_STORAGE_KEY, JSON.stringify(updated));
-        fetch('/api/cnpjs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cnpjs: updated }),
-        }).catch((e) => console.warn('Erro ao atualizar CNPJ no servidor:', e));
       } catch (err) {
         console.error(err);
       }
@@ -223,6 +246,7 @@ export default function App() {
       // ignore
     }
   }, [currentTab]);
+
   const [currentSubTab, setCurrentSubTab] = useState<ProcessosSubTab>('todos');
   const [tipoFiltro, setTipoFiltro] = useState<ProcessoTipo | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -231,37 +255,31 @@ export default function App() {
   const [observacaoModalProcesso, setObservacaoModalProcesso] = useState<Processo | null>(null);
   const [editModalProcesso, setEditModalProcesso] = useState<Processo | null>(null);
 
-  // Save to localStorage & sync
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(processos));
-      fetch('/api/processos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ processos }),
-      }).catch((e) => console.warn('Erro ao sincronizar processos com servidor:', e));
-    } catch (err) {
-      console.error('Erro ao salvar no localStorage:', err);
-    }
-  }, [processos]);
-
   const handleSaveProcesso = (novoOuAtualizado: Processo) => {
     if (currentUser === 'Visitante') {
       alert('Modo Visitante: você possui acesso somente para consulta.');
       return;
     }
+    const normalizado = normalizarSituacaoProcesso(novoOuAtualizado);
     setProcessos((prev) => {
-      const existsIndex = prev.findIndex((p) => p.id === novoOuAtualizado.id);
+      const existsIndex = prev.findIndex((p) => p.id === normalizado.id);
+      let atualizados: Processo[];
       if (existsIndex >= 0) {
-        const copy = [...prev];
-        copy[existsIndex] = novoOuAtualizado;
-        return copy;
+        atualizados = [...prev];
+        atualizados[existsIndex] = normalizado;
+      } else {
+        atualizados = [normalizado, ...prev];
       }
-      return [novoOuAtualizado, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(atualizados));
+      } catch (e) {
+        console.error('Erro ao salvar processo no localStorage:', e);
+      }
+      return atualizados;
     });
 
-    if (observacaoModalProcesso?.id === novoOuAtualizado.id) {
-      setObservacaoModalProcesso(novoOuAtualizado);
+    if (observacaoModalProcesso?.id === normalizado.id) {
+      setObservacaoModalProcesso(normalizado);
     }
 
     setCurrentTab('processos');
@@ -269,16 +287,28 @@ export default function App() {
 
   const handleDeleteProcesso = (processoId: string) => {
     if (currentUser === 'Visitante') {
-      alert('Modo Visitante: você possui acesso somente para consulta.');
       return;
     }
-    setProcessos((prev) => prev.filter((p) => p.id !== processoId));
+    setProcessos((prev) => {
+      const updated = prev.filter((p) => p.id !== processoId);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        localStorage.setItem(INITIALIZED_FLAG, 'true');
+      } catch (err) {
+        console.error('Erro ao salvar exclusão:', err);
+      }
+      return updated;
+    });
+
     if (observacaoModalProcesso?.id === processoId) {
       setObservacaoModalProcesso(null);
     }
+    if (editModalProcesso?.id === processoId) {
+      setEditModalProcesso(null);
+    }
   };
 
-  // Add observation note - AGORA USA O CURRENT USER
+  // Add observation note
   const handleAddObservacao = (processoId: string, texto: string) => {
     if (currentUser === 'Visitante') {
       alert('Modo Visitante: você não possui permissão para registrar anotações.');
@@ -292,7 +322,7 @@ export default function App() {
           id: `obs-${Date.now()}`,
           texto,
           dataHora: agora,
-          autor: currentUser || 'Analista Desconhecido', // Aplicação do nome escolhido
+          autor: currentUser || 'Analista Desconhecido',
         };
         const updated = {
           ...p,
@@ -337,12 +367,10 @@ export default function App() {
     downloadAnchor.remove();
   };
 
-  // Exportação organizada em planilha Excel (.xlsx)
   const handleExportExcel = () => {
     exportarProcessosExcel(processos);
   };
 
-  // Criação automática de extensão duplicando dados do processo original
   const handleCreateExtensao = (original: Processo) => {
     if (currentUser === 'Visitante') {
       alert('Modo Visitante: você possui acesso somente leitura e não pode criar extensões.');
@@ -363,11 +391,12 @@ export default function App() {
       mmv: original.mmv,
       marca: original.marca || mmvParts.marca,
       modelo: original.modelo || mmvParts.modelo,
-      veiculo: original.veiculo || mmvParts.veiculo,
+      veiculo: typeof original.veiculo === 'string' ? original.veiculo : (original.modelo ? '' : mmvParts.veiculo),
+      versoes: Array.isArray(original.versoes) ? original.versoes : (original.modelo ? [] : mmvParts.versoes),
       isExtensao: true,
       processoOriginalId: original.id,
       mmvOriginal: original.mmv,
-      numeroLicenca: '',
+      numeroLicenca: original.numeroLicenca || '',
       quantidade: original.quantidade,
       tipoVeiculo: original.tipoVeiculo,
       dataInicio: agora.split('T')[0],
@@ -379,7 +408,7 @@ export default function App() {
       observacoes: [
         {
           id: `obs-${Date.now()}`,
-          texto: `Extensão gerada a partir do processo original ${original.numeroSolicitacao} (${original.mmv}).`,
+          texto: `Extensão gerada a partir do processo original ${original.numeroSolicitacao} (${original.mmv}).${original.numeroLicenca ? ` Licença original herdada: ${original.numeroLicenca}.` : ''}`,
           dataHora: agora,
           autor: currentUser || 'Analista Shineray',
         },
@@ -410,7 +439,7 @@ export default function App() {
   };
 
   const totalRevalidar = processos.filter((p) =>
-    estaParaRevalidar(p.dataValidade, p.situacao)
+    estaParaRevalidar(p.dataValidade, p.situacao, p.novaDataVencimento)
   ).length;
 
   const handleVerifyPassword = (e?: React.FormEvent) => {
@@ -427,7 +456,7 @@ export default function App() {
     }
   };
 
-  // ECRÃ DE LOGIN (Se não houver utilizador selecionado: Luca Andrade, Everton Silva ou Visitante)
+  // ECRÃ DE LOGIN
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0f172a] flex items-center justify-center p-4 font-sans transition-colors selection:bg-[#E30613]/10 selection:text-[#E30613]">
@@ -445,7 +474,6 @@ export default function App() {
           </p>
 
           {selectedLoginUser ? (
-            /* Formulário de Autenticação por Senha para o analista selecionado */
             <form onSubmit={handleVerifyPassword} className="space-y-4 text-left animate-in fade-in-0 duration-200">
               <button
                 type="button"
@@ -545,7 +573,6 @@ export default function App() {
               </div>
             </form>
           ) : (
-            /* Lista de Seleção de Usuários */
             <>
               <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-8 leading-relaxed">
                 Selecione o analista responsável para iniciar a sessão e registrar notas e despachos.
@@ -601,7 +628,6 @@ export default function App() {
                   </span>
                 </button>
 
-                {/* Login de Visitante (Sem Senha / Apenas Consulta) */}
                 <div className="pt-2">
                   <div className="relative flex py-2 items-center">
                     <div className="flex-grow border-t border-neutral-200 dark:border-neutral-700"></div>
@@ -777,6 +803,7 @@ export default function App() {
         isOpen={!!editModalProcesso}
         onClose={() => setEditModalProcesso(null)}
         onSave={(updated) => handleSaveProcesso(updated)}
+        onDelete={handleDeleteProcesso}
         cnpjs={allCnpjs}
         onAddCnpj={handleAddCnpj}
         currentUser={currentUser}

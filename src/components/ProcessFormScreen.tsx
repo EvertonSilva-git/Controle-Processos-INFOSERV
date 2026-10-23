@@ -15,6 +15,7 @@ import {
   obterPrefixoSolicitacao,
   obterTiposVeiculoPermitidos,
   obterOpcoesQuantidade,
+  obterSituacoesPermitidas,
   montarMMV,
   decomporMMV,
   calcularDiasSolicitacaoAteEmissao,
@@ -28,12 +29,16 @@ import {
   Plus,
   GitBranch,
   Timer,
+  RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import { AddCnpjModal } from './AddCnpjModal';
+import { DeleteProcessModal } from './DeleteProcessModal';
 
 interface ProcessFormScreenProps {
   onSave: (processo: Processo) => void;
   onCancel: () => void;
+  onDelete?: (processoId: string) => void;
   initialData?: Processo | null;
   cnpjs?: CnpjOption[];
   onAddCnpj?: (newCnpj: CnpjOption) => void;
@@ -46,6 +51,7 @@ interface ProcessFormScreenProps {
 export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
   onSave,
   onCancel,
+  onDelete,
   initialData,
   cnpjs = CNPJ_OPTIONS,
   onAddCnpj,
@@ -55,6 +61,7 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
   isVisitante = false,
 }) => {
   const [isAddCnpjModalOpen, setIsAddCnpjModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const isExtensaoProcesso = Boolean(isExtensao || initialData?.isExtensao || processoOriginal);
 
@@ -84,12 +91,12 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
     initialData?.orgaoCertificador || processoOriginal?.orgaoCertificador || 'IMT'
   );
 
-  // 4. MMV decomposto em Marca, Modelo e Veículo/Versão
+  // 4. MMV decomposto em Marca, Modelo, Versão principal e Versões Adicionais
   const decomposto = initialData?.mmv
     ? decomporMMV(initialData.mmv, initialData.procedencia)
     : (processoOriginal?.mmv
         ? decomporMMV(processoOriginal.mmv, processoOriginal.procedencia)
-        : { marca: '', modelo: '', veiculo: '' });
+        : { marca: '', modelo: '', veiculo: '', versoes: [] });
 
   const [marcaInput, setMarcaInput] = useState<string>(() => {
     if (initialData?.marca) return initialData.marca;
@@ -103,25 +110,102 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
   });
 
   const [veiculoInput, setVeiculoInput] = useState<string>(() => {
-    if (initialData?.veiculo) return initialData.veiculo;
-    return decomposto.veiculo || '';
+    if (initialData) {
+      if (initialData.versoes && initialData.versoes.length > 0) {
+        return initialData.versoes[0];
+      }
+      if (typeof initialData.veiculo === 'string' && initialData.veiculo.trim()) {
+        const parts = initialData.veiculo.split('/').map((s) => s.trim()).filter(Boolean);
+        return parts.length > 0 ? parts[0] : '';
+      }
+      // Se não possui versões cadastradas, a versão foi deixada em branco!
+      // NUNCA pegar o nome do modelo nem supor partes do modelo como versão.
+      if (initialData.modelo || initialData.id) {
+        return '';
+      }
+      return decomposto.veiculo || '';
+    }
+
+    if (processoOriginal) {
+      if (processoOriginal.versoes && processoOriginal.versoes.length > 0) {
+        return processoOriginal.versoes[0];
+      }
+      if (typeof processoOriginal.veiculo === 'string' && processoOriginal.veiculo.trim()) {
+        const parts = processoOriginal.veiculo.split('/').map((s) => s.trim()).filter(Boolean);
+        return parts.length > 0 ? parts[0] : '';
+      }
+      if (processoOriginal.modelo) {
+        return '';
+      }
+      return decomposto.veiculo || '';
+    }
+
+    return '';
   });
+
+  const [versoesAdicionais, setVersoesAdicionais] = useState<string[]>(() => {
+    if (initialData) {
+      if (initialData.versoes && initialData.versoes.length > 1) {
+        return initialData.versoes.slice(1);
+      }
+      if (typeof initialData.veiculo === 'string' && initialData.veiculo.includes('/')) {
+        return initialData.veiculo
+          .split('/')
+          .slice(1)
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+      if (initialData.modelo || initialData.id) {
+        return [];
+      }
+      if (decomposto.versoes && decomposto.versoes.length > 1) {
+        return decomposto.versoes.slice(1);
+      }
+      return [];
+    }
+
+    if (processoOriginal) {
+      if (processoOriginal.versoes && processoOriginal.versoes.length > 1) {
+        return processoOriginal.versoes.slice(1);
+      }
+      if (typeof processoOriginal.veiculo === 'string' && processoOriginal.veiculo.includes('/')) {
+        return processoOriginal.veiculo
+          .split('/')
+          .slice(1)
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+      return [];
+    }
+
+    return [];
+  });
+
+  const handleAddVersao = () => {
+    setVersoesAdicionais((prev) => [...prev, '']);
+  };
+
+  const handleUpdateVersaoAdicional = (index: number, val: string) => {
+    setVersoesAdicionais((prev) => {
+      const copy = [...prev];
+      copy[index] = val.toUpperCase();
+      return copy;
+    });
+  };
+
+  const handleRemoveVersaoAdicional = (index: number) => {
+    setVersoesAdicionais((prev) => prev.filter((_, i) => i !== index));
+  };
 
   // 5. MMV Original (only if tipo === 'Extensão' ou isExtensaoProcesso)
   const [mmvOriginal, setMmvOriginal] = useState<string>(
     initialData?.mmvOriginal || processoOriginal?.mmv || ''
   );
 
-  // 6. Número da Licença (optional)
-  const [numeroLicenca, setNumeroLicenca] = useState<string>(initialData?.numeroLicenca || '');
-
-  // 7. Quantidade
-  const qtdConfig = obterOpcoesQuantidade(tipo);
-  const [quantidade, setQuantidade] = useState<string>(() => {
-    if (initialData?.quantidade) return initialData.quantidade;
-    if (qtdConfig.isSelect && qtdConfig.options.length > 0) return qtdConfig.options[0];
-    return '';
-  });
+  // 6. Número da Licença (copia automaticamente se for extensão de processo original)
+  const [numeroLicenca, setNumeroLicenca] = useState<string>(
+    initialData?.numeroLicenca || processoOriginal?.numeroLicenca || ''
+  );
 
   // 8. Tipo de veículo
   const tiposPermitidos = obterTiposVeiculoPermitidos(tipo);
@@ -132,15 +216,32 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
     return tiposPermitidos[0];
   });
 
+  // 7. Quantidade
+  const qtdConfig = obterOpcoesQuantidade(tipo, tipoVeiculo);
+  const [quantidade, setQuantidade] = useState<string>(() => {
+    if (initialData?.quantidade) return initialData.quantidade;
+    const initialConfig = obterOpcoesQuantidade(tipo, initialData?.tipoVeiculo || tiposPermitidos[0]);
+    if (initialConfig.isSelect && initialConfig.options.length > 0) return initialConfig.options[0];
+    return '';
+  });
+
   // 9. Data do início
   const [dataInicio, setDataInicio] = useState<string>(
     initialData?.dataInicio || new Date().toISOString().split('T')[0]
   );
 
-  // 10. Situação
-  const [situacao, setSituacao] = useState<SituacaoProcesso>(
-    initialData?.situacao || 'Em edição'
-  );
+  // 10. Situação (para Dispensa e Extensão: apenas 'Em edição', 'Encaminhada para o ibama', 'Licença/Certidão emitida')
+  const situacoesPermitidas = obterSituacoesPermitidas(tipo, isExtensaoProcesso);
+  const [situacao, setSituacao] = useState<SituacaoProcesso>(() => {
+    const permitidasIniciais = obterSituacoesPermitidas(
+      tipo,
+      initialData?.isExtensao || isExtensao || false
+    );
+    if (initialData?.situacao && permitidasIniciais.includes(initialData.situacao)) {
+      return initialData.situacao;
+    }
+    return permitidasIniciais[0];
+  });
 
   // 11. Data do envio
   const [dataEnvio, setDataEnvio] = useState<string>(initialData?.dataEnvio || '');
@@ -148,10 +249,16 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
   // 12. Data de emissão
   const [dataEmissao, setDataEmissao] = useState<string>(initialData?.dataEmissao || '');
 
-  // 13. Data de validade da licença
+  // 13. Data de validade da licença (Vencimento original)
   const [dataValidade, setDataValidade] = useState<string>(initialData?.dataValidade || '');
 
-  // 14. CNPJ da Homologação (Fabricante / Filial)
+  // 14. Data de Revalidação
+  const [dataRevalidacao, setDataRevalidacao] = useState<string>(initialData?.dataRevalidacao || '');
+
+  // 15. Nova Data de Vencimento
+  const [novaDataVencimento, setNovaDataVencimento] = useState<string>(initialData?.novaDataVencimento || '');
+
+  // CNPJ da Homologação (Fabricante / Filial)
   const [cnpj, setCnpj] = useState<string>(() => {
     if (initialData?.cnpj) return initialData.cnpj;
     return '12482805000106'; // Matriz pré-selecionada
@@ -164,6 +271,14 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
   const [erros, setErros] = useState<{ [key: string]: string }>({});
   const [sucesso, setSucesso] = useState(false);
 
+  // Synchronize situacao when tipo or isExtensao changes
+  useEffect(() => {
+    const permitidas = obterSituacoesPermitidas(tipo, isExtensaoProcesso);
+    if (!permitidas.includes(situacao)) {
+      setSituacao(permitidas[0]);
+    }
+  }, [tipo, isExtensaoProcesso, situacao]);
+
   // Synchronize vehicle type when tipo changes
   useEffect(() => {
     const permitidos = obterTiposVeiculoPermitidos(tipo);
@@ -172,9 +287,9 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
     }
   }, [tipo, tipoVeiculo]);
 
-  // Synchronize quantidade when tipo changes
+  // Synchronize quantidade when tipo or tipoVeiculo changes
   useEffect(() => {
-    const config = obterOpcoesQuantidade(tipo);
+    const config = obterOpcoesQuantidade(tipo, tipoVeiculo);
     if (config.isOmitted) {
       setQuantidade('');
     } else if (config.isSelect && config.options.length > 0) {
@@ -182,7 +297,7 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
         setQuantidade(config.options[0]);
       }
     }
-  }, [tipo, quantidade]);
+  }, [tipo, tipoVeiculo, quantidade]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -221,7 +336,18 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
 
     // Construct full values
     const fullSolicitacao = `${prefixoSolicitacao} ${numeroSolicitacaoInput.trim()}`;
-    const fullMMV = montarMMV(procedencia, marcaInput, modeloInput, veiculoInput);
+    const todasVersoes = [
+      veiculoInput.trim().toUpperCase(),
+      ...versoesAdicionais.map((v) => v.trim().toUpperCase()),
+    ].filter(Boolean);
+
+    const fullMMV = montarMMV(
+      procedencia,
+      marcaInput,
+      modeloInput,
+      veiculoInput,
+      versoesAdicionais
+    );
 
     const agora = new Date().toISOString();
     const observacoes: Observacao[] = initialData ? [...initialData.observacoes] : [];
@@ -244,7 +370,8 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
       mmv: fullMMV,
       marca: marcaInput.trim().toUpperCase(),
       modelo: modeloInput.trim().toUpperCase(),
-      veiculo: veiculoInput.trim().toUpperCase() || undefined,
+      veiculo: todasVersoes.length > 0 ? todasVersoes.join(' / ') : '',
+      versoes: todasVersoes,
       isExtensao: isExtensaoProcesso,
       processoOriginalId: processoOriginal?.id || initialData?.processoOriginalId || undefined,
       mmvOriginal: isExtensaoProcesso ? mmvOriginal.trim() : undefined,
@@ -257,6 +384,8 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
       dataEnvio: dataEnvio || undefined,
       dataEmissao: dataEmissao || undefined,
       dataValidade: dataValidade || undefined,
+      dataRevalidacao: dataRevalidacao || undefined,
+      novaDataVencimento: novaDataVencimento || undefined,
       observacoes,
       criadoEm: initialData?.criadoEm || agora,
       atualizadoEm: agora,
@@ -562,22 +691,28 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
               </p>
             </div>
 
-            {/* Campo 5: MMV Separado em Marca, Modelo e Veículo/Versão */}
-            <div className="space-y-3 sm:col-span-2 p-4 bg-neutral-50/80 dark:bg-neutral-800/40 border border-neutral-200/80 dark:border-neutral-700/80 rounded-xl">
+            {/* Campo 5: MMV Separado em Marca, Modelo e Múltiplas Versões */}
+            <div className="space-y-4 sm:col-span-2 p-4 bg-neutral-50/80 dark:bg-neutral-800/40 border border-neutral-200/80 dark:border-neutral-700/80 rounded-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200">
-                  5. Identificação MMV (Marca / Modelo / Veículo) <span className="text-[#E30613]">*</span>
-                </label>
-                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                  {procedencia === 'Importado' ? 'Prefixo "I/" aplicado automaticamente para importados' : 'Procedência Nacional (sem prefixo I/)'}
+                <div>
+                  <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                    5. Identificação MMV (Marca / Modelo / Versões) <span className="text-[#E30613]">*</span>
+                  </label>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                    Preencha a Marca, o Modelo e as Versões específicas da moto ou veículo.
+                  </p>
+                </div>
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
+                  {procedencia === 'Importado' ? 'Prefixo "I/" aplicado automaticamente' : 'Procedência Nacional (sem prefixo I/)'}
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Linha com Marca e Modelo */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* 1. Marca */}
                 <div className="space-y-1">
                   <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
-                    Marca <span className="text-[#E30613]">*</span>
+                    Marca do Veículo <span className="text-[#E30613]">*</span>
                   </label>
                   <div className="relative">
                     {procedencia === 'Importado' && (
@@ -605,13 +740,13 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                 {/* 2. Modelo */}
                 <div className="space-y-1">
                   <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
-                    Modelo <span className="text-[#E30613]">*</span>
+                    Modelo Base <span className="text-[#E30613]">*</span>
                   </label>
                   <input
                     type="text"
                     value={modeloInput}
                     onChange={(e) => setModeloInput(e.target.value.toUpperCase())}
-                    placeholder="Ex: SBM, WORKER, T20"
+                    placeholder="Ex: WORKER, STORM, SBM, SHI"
                     className={`w-full px-3 py-2 rounded-lg border text-sm font-semibold tracking-wide uppercase bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-500 ${
                       erros.modelo ? 'border-rose-400 bg-rose-50/20' : 'border-neutral-200 dark:border-neutral-700'
                     }`}
@@ -622,20 +757,95 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                     </p>
                   )}
                 </div>
+              </div>
 
-                {/* 3. Veículo / Versão */}
+              {/* Seção de Versões (Principal + Opções para adicionar mais versões) */}
+              <div className="pt-2.5 border-t border-neutral-200/80 dark:border-neutral-700/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                      Versões do Veículo / Motocicleta
+                    </label>
+                    <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                      Cadastre a versão principal e clique no botão para adicionar outras versões específicas.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddVersao}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 transition-colors shadow-2xs cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Adicionar versão</span>
+                  </button>
+                </div>
+
+                {/* Versão Principal (Versão #1) */}
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
-                    Veículo / Versão
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
+                      Versão Principal (Versão 1)
+                    </label>
+                    <span className="text-[10px] font-mono text-neutral-400">Padrão</span>
+                  </div>
                   <input
                     type="text"
                     value={veiculoInput}
                     onChange={(e) => setVeiculoInput(e.target.value.toUpperCase())}
-                    placeholder="Ex: 500, 125, PRO, CABINE SIMPLES 1.0"
+                    placeholder="Ex: 125, STD, 200 PRO, CABINE SIMPLES 1.0"
                     className="w-full px-3 py-2 rounded-lg border text-sm font-semibold tracking-wide uppercase bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-500 border-neutral-200 dark:border-neutral-700"
                   />
                 </div>
+
+                {/* Lista dinâmica de versões adicionais */}
+                {versoesAdicionais.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    {versoesAdicionais.map((va, idx) => (
+                      <div key={idx} className="flex items-center gap-2 animate-in fade-in-0 duration-150">
+                        <div className="flex-1 space-y-1">
+                          <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
+                            Versão Adicional #{idx + 2}
+                          </label>
+                          <input
+                            type="text"
+                            value={va}
+                            onChange={(e) => handleUpdateVersaoAdicional(idx, e.target.value)}
+                            placeholder={`Ex: 125 SPORT, OFFROAD, EFI, VERSÃO ${idx + 2}`}
+                            className="w-full px-3 py-2 rounded-lg border text-sm font-semibold tracking-wide uppercase bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-500 border-neutral-200 dark:border-neutral-700"
+                          />
+                        </div>
+                        <div className="pt-5">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveVersaoAdicional(idx)}
+                            className="p-2 text-neutral-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-rose-200 dark:hover:border-rose-800"
+                            title="Remover esta versão"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Resumo visual das versões registradas */}
+                {([veiculoInput.trim().toUpperCase(), ...versoesAdicionais.map((v) => v.trim().toUpperCase())].filter(Boolean).length > 0) && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[10px] text-neutral-400 uppercase font-semibold mr-1">
+                      Versões ativas:
+                    </span>
+                    {[veiculoInput.trim().toUpperCase(), ...versoesAdicionais.map((v) => v.trim().toUpperCase())].filter(Boolean).map((v, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 text-[11px] font-mono font-medium px-2 py-0.5 rounded bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700 shadow-2xs"
+                      >
+                        <span className="text-[9px] font-bold text-neutral-400">#{i + 1}</span>
+                        <span>{v}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Pré-visualização do MMV Formatado */}
@@ -643,8 +853,8 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                 <span className="text-neutral-500 dark:text-neutral-400">
                   Visualização unificada no cartão do processo:
                 </span>
-                <span className="font-mono font-bold text-neutral-900 dark:text-white bg-white dark:bg-neutral-900 px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 shadow-2xs">
-                  {montarMMV(procedencia, marcaInput, modeloInput, veiculoInput) || 'Aguardando preenchimento...'}
+                <span className="font-mono font-bold text-neutral-900 dark:text-white bg-white dark:bg-neutral-900 px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 shadow-2xs break-all">
+                  {montarMMV(procedencia, marcaInput, modeloInput, veiculoInput, versoesAdicionais) || 'Aguardando preenchimento...'}
                 </span>
               </div>
             </div>
@@ -688,31 +898,50 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Campo 6: Número da Licença */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                6. Número da Licença Infoserv (Opcional)
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  6. Número da Licença Infoserv (Opcional)
+                </label>
+                {isExtensaoProcesso && (processoOriginal?.numeroLicenca || initialData?.processoOriginalId || initialData?.isExtensao) && numeroLicenca && (
+                  <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                    Copiada do original
+                  </span>
+                )}
+              </div>
               <input
                 type="text"
+                disabled={isVisitante}
                 value={numeroLicenca}
                 onChange={(e) => setNumeroLicenca(e.target.value.toUpperCase())}
                 placeholder="Ex: 2026/00142/IBAMA"
-                className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
+                  isVisitante ? 'opacity-70 cursor-not-allowed' : ''
+                }`}
               />
               <p className="text-[11px] text-neutral-400">
-                Preencha quando a licença for expedida pelo órgão.
+                {isExtensaoProcesso
+                  ? 'Licença herdada automaticamente da homologação original. Pode ser ajustada se necessário.'
+                  : 'Preencha quando a licença for expedida pelo órgão.'}
               </p>
             </div>
 
             {/* Campo 7: Quantidade */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                7. Quantidade de Veículos <span className="text-[#E30613]">*</span>
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  7. Quantidade de Veículos <span className="text-[#E30613]">*</span>
+                </label>
+                {tipo === 'LCM Especial' && qtdConfig.isInput && (
+                  <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                    Digitação manual ({tipoVeiculo})
+                  </span>
+                )}
+              </div>
               {qtdConfig.isOmitted ? (
                 <div className="px-3 py-2 rounded-lg border border-dashed border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-neutral-400 text-xs">
                   Não aplicável para {tipo} (campo omitido)
                 </div>
-              ) : tipo === 'LCM Especial' ? (
+              ) : tipo === 'LCM Especial' && !qtdConfig.isInput ? (
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-2.5">
                     {['1', '2'].map((val) => {
@@ -745,42 +974,67 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                     })}
                   </div>
                   <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                    Para <strong>LCM Especial</strong>, a quantidade é estritamente de <strong>1</strong> ou <strong>2</strong> veículos (escolha direta).
+                    Para <strong>LCM Especial</strong> ({tipoVeiculo}), a quantidade padrão é de <strong>1</strong> ou <strong>2</strong> veículos.
+                  </p>
+                </div>
+              ) : qtdConfig.isInput ? (
+                <div className="space-y-1.5">
+                  <input
+                    type="text"
+                    disabled={isVisitante}
+                    value={quantidade}
+                    onChange={(e) => setQuantidade(e.target.value)}
+                    placeholder={
+                      tipo === 'LCM Especial'
+                        ? 'Digite a quantidade (ex: 5, 10, lote experimental...)'
+                        : 'Ex: 2 protótipos de engenharia para pista...'
+                    }
+                    className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
+                      isVisitante ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
+                  />
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    {tipo === 'LCM Especial'
+                      ? `Digitação manual habilitada para ${tipoVeiculo}. Adicione a quantidade conforme especificação técnica.`
+                      : 'Especifique o número exato e a destinação técnica.'}
                   </p>
                 </div>
               ) : qtdConfig.isSelect ? (
-                <select
-                  value={quantidade}
-                  disabled={isVisitante}
-                  onChange={(e) => setQuantidade(e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
-                    isVisitante ? 'opacity-70 cursor-not-allowed' : ''
-                  }`}
-                >
-                  {qtdConfig.options.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
+                <div className="space-y-1.5">
+                  <select
+                    value={quantidade}
+                    disabled={isVisitante}
+                    onChange={(e) => setQuantidade(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
+                      isVisitante ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {qtdConfig.options.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-neutral-400">
+                    Regra de quantidade baseada no enquadramento.
+                  </p>
+                </div>
               ) : (
-                <input
-                  type="text"
-                  disabled={isVisitante}
-                  value={quantidade}
-                  onChange={(e) => setQuantidade(e.target.value)}
-                  placeholder="Informe a quantidade de veículos"
-                  className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
-                    isVisitante ? 'opacity-70 cursor-not-allowed' : ''
-                  }`}
-                />
-              )}
-              {tipo !== 'LCM Especial' && (
-                <p className="text-[11px] text-neutral-400">
-                  {qtdConfig.isOmitted
-                    ? 'Campo desnecessário para este tipo de homologação.'
-                    : 'Regra de quantidade baseada no enquadramento.'}
-                </p>
+                <div className="space-y-1.5">
+                  <input
+                    type="text"
+                    disabled={isVisitante}
+                    value={quantidade}
+                    onChange={(e) => setQuantidade(e.target.value)}
+                    placeholder="Informe a quantidade de veículos"
+                    className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
+                      isVisitante ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
+                  />
+                  <p className="text-[11px] text-neutral-400">
+                    Especifique a quantidade pretendida.
+                  </p>
+                </div>
               )}
             </div>
 
@@ -846,23 +1100,34 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
 
             {/* Campo 10: Situação */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                10. Situação Atual <span className="text-[#E30613]">*</span>
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  10. Situação Atual <span className="text-[#E30613]">*</span>
+                </label>
+                {(tipo === 'Dispensa' || isExtensaoProcesso) && (
+                  <span className="text-[10px] font-semibold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 px-2 py-0.5 rounded border border-sky-200 dark:border-sky-800">
+                    Fluxo simplificado: 3 situações
+                  </span>
+                )}
+              </div>
               <select
                 value={situacao}
+                disabled={isVisitante}
                 onChange={(e) => setSituacao(e.target.value as SituacaoProcesso)}
-                className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
+                  isVisitante ? 'opacity-70 cursor-not-allowed' : ''
+                }`}
               >
-                <option value="Em edição">Em edição</option>
-                <option value="Encaminhada para o ibama">Encaminhada para o ibama</option>
-                <option value="Em análise pelo Analista do ATC">Em análise pelo Analista do ATC</option>
-                <option value="A pagar">A pagar</option>
-                <option value="Para correção">Para correção</option>
-                <option value="Licença/Certidão emitida">Licença/Certidão emitida</option>
+                {situacoesPermitidas.map((sit) => (
+                  <option key={sit} value={sit}>
+                    {sit}
+                  </option>
+                ))}
               </select>
               <p className="text-[11px] text-neutral-400">
-                Status corrente no fluxo regulatório do IBAMA.
+                {(tipo === 'Dispensa' || isExtensaoProcesso)
+                  ? 'Para Dispensa e Extensão, são aplicáveis apenas: Em edição, Encaminhada para o ibama e Licença/Certidão emitida.'
+                  : 'Status corrente no fluxo regulatório do IBAMA.'}
               </p>
             </div>
 
@@ -926,20 +1191,87 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
             {/* Campo 13: Data de Validade da Licença */}
             <div className="space-y-1.5 sm:col-span-2">
               <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
-                <span>13. Data de Validade da Licença</span>
+                <span>13. Data de Validade da Licença (Vencimento Original)</span>
                 <span className="text-[11px] text-neutral-400 font-normal">
                   Alerta gerado com ≤ 61 dias restantes
                 </span>
               </label>
               <input
                 type="date"
+                disabled={isVisitante}
                 value={dataValidade}
                 onChange={(e) => setDataValidade(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
+                  isVisitante ? 'opacity-70 cursor-not-allowed' : ''
+                }`}
               />
               <p className="text-[11px] text-neutral-400">
                 Alimenta o cálculo de "Dias restantes" e inclusão no painel "Para revalidação".
               </p>
+            </div>
+
+            {/* Bloco de Revalidação de Licença: Campos 14 e 15 */}
+            <div className="sm:col-span-2 p-4 rounded-xl border border-amber-200/90 dark:border-amber-800/60 bg-amber-50/50 dark:bg-amber-950/20 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
+                      Revalidação de Licença / Certidão
+                    </h3>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      Preencha quando a homologação passar pelo processo de revalidação técnica
+                    </p>
+                  </div>
+                </div>
+                {(dataRevalidacao || novaDataVencimento) && (
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700">
+                    Revalidado
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                {/* Campo 14: Data de Revalidação */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    14. Data de Revalidação
+                  </label>
+                  <input
+                    type="date"
+                    disabled={isVisitante}
+                    value={dataRevalidacao}
+                    onChange={(e) => setDataRevalidacao(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
+                      isVisitante ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
+                  />
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    Data em que a revalidação foi realizada ou protocolada.
+                  </p>
+                </div>
+
+                {/* Campo 15: Nova Data de Vencimento */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    15. Nova Data de Vencimento
+                  </label>
+                  <input
+                    type="date"
+                    disabled={isVisitante}
+                    value={novaDataVencimento}
+                    onChange={(e) => setNovaDataVencimento(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
+                      isVisitante ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
+                  />
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    Novo prazo de validade da certidão após revalidação.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -964,23 +1296,37 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
         )}
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-2.5 pt-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/70 dark:bg-neutral-800 dark:hover:bg-neutral-700 rounded-lg transition-colors cursor-pointer"
-          >
-            {isVisitante ? 'Fechar Visualização' : 'Cancelar'}
-          </button>
-          {!isVisitante && (
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2">
+          <div>
+            {initialData && !isVisitante && onDelete && (
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="px-3.5 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Excluir Processo</span>
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2.5">
             <button
-              type="submit"
-              className="px-5 py-2 text-xs font-medium text-white bg-[#E30613] hover:bg-[#c70510] rounded-lg transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/70 dark:bg-neutral-800 dark:hover:bg-neutral-700 rounded-lg transition-colors cursor-pointer"
             >
-              <FileCheck className="w-3.5 h-3.5" />
-              <span>{initialData ? 'Atualizar Processo' : 'Salvar Processo'}</span>
+              {isVisitante ? 'Fechar Visualização' : 'Cancelar'}
             </button>
-          )}
+            {!isVisitante && (
+              <button
+                type="submit"
+                className="px-5 py-2 text-xs font-medium text-white bg-[#E30613] hover:bg-[#c70510] rounded-lg transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <FileCheck className="w-3.5 h-3.5" />
+                <span>{initialData ? 'Atualizar Processo' : 'Salvar Processo'}</span>
+              </button>
+            )}
+          </div>
         </div>
       </form>
 
@@ -996,6 +1342,22 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
             setCnpj(newCnpj.raw);
           }}
           existingCnpjs={cnpjs}
+        />
+      )}
+
+      {/* Modal para confirmação de exclusão */}
+      {initialData && (
+        <DeleteProcessModal
+          isOpen={isDeleteModalOpen}
+          processo={initialData}
+          onClose={() => setIsDeleteModalOpen(false)}
+          onConfirm={() => {
+            if (onDelete && initialData) {
+              onDelete(initialData.id);
+              setIsDeleteModalOpen(false);
+              onCancel();
+            }
+          }}
         />
       )}
     </div>

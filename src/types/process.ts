@@ -64,7 +64,8 @@ export interface Processo {
   mmv: string; // ex: I/SHINERAY/SBM 500 ou SHINERAY/WORKER 125
   marca?: string; // campo separado de Marca
   modelo?: string; // campo separado de Modelo
-  veiculo?: string; // campo separado de Veículo / Versão
+  veiculo?: string; // campo separado de Veículo / Versão (ou versões concatenadas)
+  versoes?: string[]; // lista de todas as versões do veículo (ex: ['125', '125 SPORT'])
   isExtensao?: boolean; // indica se é um processo de extensão
   processoOriginalId?: string; // id do processo original base
   mmvOriginal?: string; // MMV do processo original
@@ -75,7 +76,9 @@ export interface Processo {
   situacao: SituacaoProcesso;
   dataEnvio?: string; // YYYY-MM-DD
   dataEmissao?: string; // YYYY-MM-DD
-  dataValidade?: string; // YYYY-MM-DD
+  dataValidade?: string; // YYYY-MM-DD (Data de validade / vencimento original)
+  dataRevalidacao?: string; // YYYY-MM-DD (Data da revalidação)
+  novaDataVencimento?: string; // YYYY-MM-DD (Nova data de vencimento pós-revalidação)
   cnpj?: string; // CNPJ da empresa/filial (e.g. '12482805000106')
   observacoes: Observacao[];
   criadoEm: string;

@@ -4,12 +4,14 @@ import {
   calcularDiasRestantes,
   calcularDiasSolicitacaoAteEmissao,
   estaParaRevalidar,
+  obterDataVencimentoEfetiva,
   formatarDataBR,
 } from '../utils/processCalculations';
 import { RevalidationAlertBanner } from './RevalidationAlertBanner';
 import { ClassificationTypesBar } from './ClassificationTypesBar';
 import { CnpjFilterCards } from './CnpjFilterCards';
 import { LeadTimeComparisonScreen } from './LeadTimeComparisonScreen';
+import { DeleteProcessModal } from './DeleteProcessModal';
 import {
   Search,
   MessageSquare,
@@ -33,6 +35,7 @@ import {
   Timer,
   Eye,
   ArrowRight,
+  RefreshCw,
 } from 'lucide-react';
 
 interface ProcessesScreenProps {
@@ -85,6 +88,7 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
   const [sortBy, setSortBy] = useState<'recentes' | 'validade' | 'solicitacao'>('recentes');
   const [expandedExtensoes, setExpandedExtensoes] = useState<Record<string, boolean>>({});
   const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
+  const [processoParaExcluir, setProcessoParaExcluir] = useState<Processo | null>(null);
 
   const toggleExpandedExtensoes = (id: string) => {
     setExpandedExtensoes((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -208,7 +212,7 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
   );
 
   const countParaRevalidacao = useMemo(
-    () => processos.filter((p) => estaParaRevalidar(p.dataValidade, p.situacao)).length,
+    () => processos.filter((p) => estaParaRevalidar(p.dataValidade, p.situacao, p.novaDataVencimento)).length,
     [processos]
   );
 
@@ -222,7 +226,7 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
   );
 
   const processosParaRevalidar = useMemo(() => {
-    return processos.filter((p) => estaParaRevalidar(p.dataValidade, p.situacao));
+    return processos.filter((p) => estaParaRevalidar(p.dataValidade, p.situacao, p.novaDataVencimento));
   }, [processos]);
 
   // Filter processes according to subTab
@@ -245,7 +249,7 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
         );
       case 'para_revalidacao':
         return processos.filter((p) =>
-          estaParaRevalidar(p.dataValidade, p.situacao)
+          estaParaRevalidar(p.dataValidade, p.situacao, p.novaDataVencimento)
         );
       case 'todos':
       default:
@@ -309,8 +313,8 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
   const sortedProcessos = useMemo(() => {
     return [...finalFiltered].sort((a, b) => {
       if (sortBy === 'validade') {
-        const diasA = calcularDiasRestantes(a.dataValidade) ?? 9999;
-        const diasB = calcularDiasRestantes(b.dataValidade) ?? 9999;
+        const diasA = calcularDiasRestantes(obterDataVencimentoEfetiva(a.dataValidade, a.novaDataVencimento)) ?? 9999;
+        const diasB = calcularDiasRestantes(obterDataVencimentoEfetiva(b.dataValidade, b.novaDataVencimento)) ?? 9999;
         return diasA - diasB;
       }
       if (sortBy === 'solicitacao') {
@@ -685,10 +689,12 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
           </div>
         ) : (
           sortedProcessos.map((processo) => {
-            const diasRestantes = calcularDiasRestantes(processo.dataValidade);
+            const dataVencimentoEfetiva = obterDataVencimentoEfetiva(processo.dataValidade, processo.novaDataVencimento);
+            const diasRestantes = calcularDiasRestantes(dataVencimentoEfetiva);
             const isEmitido = processo.situacao === 'Licença/Certidão emitida' || !!processo.numeroLicenca;
-            const showDiasRestantes = isEmitido && !!processo.dataValidade && diasRestantes !== null;
+            const showDiasRestantes = isEmitido && !!dataVencimentoEfetiva && diasRestantes !== null;
             const isRevalidacaoAlerta = showDiasRestantes && diasRestantes <= 61;
+            const isRevalidado = Boolean(processo.dataRevalidacao || processo.novaDataVencimento);
 
             const calculoEnvioEmissao = calcularDiasSolicitacaoAteEmissao(
               processo.dataEnvio,
@@ -739,6 +745,13 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                       <span className="text-xs font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/80 px-2 py-0.5 rounded border border-emerald-300 dark:border-emerald-700 inline-flex items-center gap-1 shadow-2xs">
                         <GitBranch className="w-3 h-3 text-emerald-600 dark:text-emerald-300" />
                         <span>Extensão</span>
+                      </span>
+                    )}
+                    {/* Badge se for um processo revalidado */}
+                    {isRevalidado && (
+                      <span className="text-xs font-bold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-700 inline-flex items-center gap-1 shadow-2xs">
+                        <RefreshCw className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                        <span>Revalidado</span>
                       </span>
                     )}
                     {/* Badge se for a extensão selecionada via lista suspensa */}
@@ -916,6 +929,27 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                         {processo.mmv}
                       </div>
 
+                      {/* Lista de Versões específicas se houver mais de 1 versão */}
+                      {((processo.versoes && processo.versoes.length > 1) || (processo.veiculo && processo.veiculo.includes('/'))) && (
+                        <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                          <span className="text-[10px] text-neutral-400 font-semibold uppercase">
+                            Versões:
+                          </span>
+                          {(processo.versoes && processo.versoes.length > 0
+                            ? processo.versoes
+                            : (processo.veiculo?.split('/') || []).map((s) => s.trim()).filter(Boolean)
+                          ).map((v, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700"
+                            >
+                              <span className="text-[9px] text-neutral-400">#{idx + 1}</span>
+                              <span>{v}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
                       {processo.mmvOriginal && !isProcessoExtensao && (
                         <div className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded px-2 py-0.5 mt-1 inline-block">
                           <span className="font-semibold">Base:</span> {processo.mmvOriginal}
@@ -964,42 +998,75 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                   </div>
 
                   {/* Dates Row */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 py-2.5 border-y border-neutral-100 dark:border-neutral-800 text-xs">
-                    <div>
-                      <span className="text-neutral-400 block text-[10px] uppercase font-medium">
-                        Data de Início
-                      </span>
-                      <span className="font-mono text-neutral-700 dark:text-neutral-300">
-                        {formatarDataBR(processo.dataInicio)}
-                      </span>
+                  <div className="py-2.5 border-y border-neutral-100 dark:border-neutral-800 text-xs space-y-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div>
+                        <span className="text-neutral-400 block text-[10px] uppercase font-medium">
+                          Data de Início
+                        </span>
+                        <span className="font-mono text-neutral-700 dark:text-neutral-300">
+                          {formatarDataBR(processo.dataInicio)}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-neutral-400 block text-[10px] uppercase font-medium">
+                          Data do Envio
+                        </span>
+                        <span className="font-mono text-neutral-700 dark:text-neutral-300">
+                          {formatarDataBR(processo.dataEnvio)}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-neutral-400 block text-[10px] uppercase font-medium">
+                          Data de Emissão
+                        </span>
+                        <span className="font-mono text-neutral-700 dark:text-neutral-300">
+                          {formatarDataBR(processo.dataEmissao)}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-neutral-400 block text-[10px] uppercase font-medium">
+                          Validade da Licença
+                        </span>
+                        <span className={`font-mono ${processo.novaDataVencimento ? 'line-through text-neutral-400 text-[11px]' : 'text-neutral-700 dark:text-neutral-300'}`}>
+                          {formatarDataBR(processo.dataValidade)}
+                        </span>
+                        {processo.novaDataVencimento && (
+                          <div className="font-mono text-emerald-700 dark:text-emerald-400 font-bold text-xs" title="Novo vencimento pós-revalidação">
+                            {formatarDataBR(processo.novaDataVencimento)}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    <div>
-                      <span className="text-neutral-400 block text-[10px] uppercase font-medium">
-                        Data do Envio
-                      </span>
-                      <span className="font-mono text-neutral-700 dark:text-neutral-300">
-                        {formatarDataBR(processo.dataEnvio)}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-neutral-400 block text-[10px] uppercase font-medium">
-                        Data de Emissão
-                      </span>
-                      <span className="font-mono text-neutral-700 dark:text-neutral-300">
-                        {formatarDataBR(processo.dataEmissao)}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-neutral-400 block text-[10px] uppercase font-medium">
-                        Validade da Licença
-                      </span>
-                      <span className="font-mono text-neutral-700 dark:text-neutral-300">
-                        {formatarDataBR(processo.dataValidade)}
-                      </span>
-                    </div>
+                    {/* Linha de Revalidação se houver data de revalidação ou nova data de vencimento */}
+                    {(processo.dataRevalidacao || processo.novaDataVencimento) && (
+                      <div className="pt-2 border-t border-dashed border-amber-200 dark:border-amber-800/60 flex flex-wrap items-center gap-3 bg-amber-50/50 dark:bg-amber-950/20 px-2.5 py-1.5 rounded-lg">
+                        <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 font-bold text-[11px]">
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Revalidação:</span>
+                        </div>
+                        {processo.dataRevalidacao && (
+                          <div className="flex items-center gap-1 text-[11px]">
+                            <span className="text-neutral-500 dark:text-neutral-400">Data Revalidação:</span>
+                            <span className="font-mono font-bold text-neutral-800 dark:text-neutral-200">
+                              {formatarDataBR(processo.dataRevalidacao)}
+                            </span>
+                          </div>
+                        )}
+                        {processo.novaDataVencimento && (
+                          <div className="flex items-center gap-1 text-[11px]">
+                            <span className="text-neutral-500 dark:text-neutral-400">Novo Vencimento:</span>
+                            <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                              {formatarDataBR(processo.novaDataVencimento)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Calculated Fields Box */}
@@ -1010,8 +1077,13 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                         <Clock className="w-3.5 h-3.5" />
                       </div>
                       <div>
-                        <div className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">
-                          Dias Restantes de Validade
+                        <div className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide flex items-center justify-between">
+                          <span>Dias Restantes de Validade</span>
+                          {processo.novaDataVencimento && (
+                            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                              (Novo vencimento)
+                            </span>
+                          )}
                         </div>
                         {showDiasRestantes ? (
                           <div className="text-xs font-medium text-neutral-800 dark:text-neutral-200 mt-0.5">
@@ -1109,34 +1181,53 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
                         )}
                       </button>
 
-                      {/* Botão Excluir - Oculto para visitante */}
-                      {!isVisitante && (
-                        <button
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Deseja realmente remover o processo ${processo.numeroSolicitacao} (${processo.mmv})?`
-                              )
-                            ) {
-                              onDeleteProcesso(processo.id);
-                            }
-                          }}
-                          className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                          title="Remover processo"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                        {/* Botão Excluir - Oculto para visitante */}
+                        {!isVisitante && (
+                          <button
+                            type="button"
+                            onClick={() => setProcessoParaExcluir(processo)}
+                            className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                            title="Remover processo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </>
-  )}
-</div>
+              );
+            })
+          )}
+        </div>
+      </>
+    )}
+
+    {/* Modal de Confirmação de Exclusão de Processo */}
+    <DeleteProcessModal
+      isOpen={!!processoParaExcluir}
+      processo={processoParaExcluir}
+      onClose={() => setProcessoParaExcluir(null)}
+      onConfirm={() => {
+        if (processoParaExcluir) {
+          onDeleteProcesso(processoParaExcluir.id);
+          setProcessoParaExcluir(null);
+        }
+      }}
+      linkedExtensionsCount={
+        processoParaExcluir
+          ? processos.filter(
+              (p) =>
+                p.id !== processoParaExcluir.id &&
+                Boolean(p.isExtensao || p.tipo === 'Extensão') &&
+                (p.processoOriginalId === processoParaExcluir.id ||
+                  (p.mmvOriginal &&
+                    (p.mmvOriginal === processoParaExcluir.mmv ||
+                      p.mmvOriginal === processoParaExcluir.numeroSolicitacao)))
+            ).length
+          : 0
+      }
+    />
+  </div>
   );
 };

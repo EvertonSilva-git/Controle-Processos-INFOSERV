@@ -111,7 +111,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     quantidade: '3 unidades experimentais para validação dinâmica em pista',
     tipoVeiculo: 'Protótipo',
     dataInicio: '2026-08-20',
-    situacao: 'A pagar',
+    situacao: 'Encaminhada para o ibama',
     dataEnvio: '2026-08-28',
     dataEmissao: '',
     dataValidade: '',
@@ -119,7 +119,7 @@ export const INITIAL_PROCESSOS: Processo[] = [
     observacoes: [
       {
         id: 'obs-007',
-        texto: 'Guia de Recolhimento da União (GRU) gerada pelo sistema Infoserv. Encaminhada ao financeiro.',
+        texto: 'Processo transmitido e encaminhado ao IBAMA para análise e emissão da dispensa.',
         dataHora: '2026-09-18T11:00:00',
         autor: 'Coordenação Administrativa'
       }
@@ -255,7 +255,9 @@ export const INITIAL_PROCESSOS: Processo[] = [
     situacao: 'Licença/Certidão emitida',
     dataEnvio: '2026-03-01',
     dataEmissao: '2026-04-25',
-    dataValidade: '2027-04-25',
+    dataValidade: '2026-10-25',
+    dataRevalidacao: '2026-10-10',
+    novaDataVencimento: '2027-10-25',
     cnpj: '12482805000106',
     observacoes: [
       {
@@ -269,10 +271,16 @@ export const INITIAL_PROCESSOS: Processo[] = [
         texto: 'Licença LCVM Especial emitida pela Divisão Técnica do IBAMA após 55 dias de trâmite.',
         dataHora: '2026-04-25T15:30:00',
         autor: 'Assistente Técnico de Homologação'
+      },
+      {
+        id: 'obs-014b',
+        texto: 'Revalidação técnica protocolada e aprovada com sucesso. Nova data de vencimento estendida para 25/10/2027.',
+        dataHora: '2026-10-10T14:00:00',
+        autor: 'Homologação Shineray'
       }
     ],
     criadoEm: '2026-02-15T09:00:00',
-    atualizadoEm: '2026-04-25T15:30:00'
+    atualizadoEm: '2026-10-10T14:00:00'
   },
   {
     id: 'proc-010',

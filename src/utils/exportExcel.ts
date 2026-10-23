@@ -5,6 +5,7 @@ import {
   calcularDiasSolicitacaoAteEmissao,
   formatarDataBR,
   formatarDataHoraBR,
+  obterDataVencimentoEfetiva,
 } from './processCalculations';
 
 export async function exportarProcessosExcel(processos: Processo[]) {
@@ -73,11 +74,13 @@ export async function exportarProcessosExcel(processos: Processo[]) {
   const emAndamento = processos.filter((p) => p.situacao !== 'Licença/Certidão emitida' && !p.numeroLicenca);
   const paraCorrecao = processos.filter((p) => p.situacao === 'Para correção');
   const paraRevalidar = processos.filter((p) => {
-    const dias = calcularDiasRestantes(p.dataValidade);
+    const dataEfetiva = obterDataVencimentoEfetiva(p.dataValidade, p.novaDataVencimento);
+    const dias = calcularDiasRestantes(dataEfetiva);
     return dias !== null && dias > 0 && dias <= 61;
   });
   const vencidas = processos.filter((p) => {
-    const dias = calcularDiasRestantes(p.dataValidade);
+    const dataEfetiva = obterDataVencimentoEfetiva(p.dataValidade, p.novaDataVencimento);
+    const dias = calcularDiasRestantes(dataEfetiva);
     return dias !== null && dias <= 0;
   });
 
@@ -88,10 +91,10 @@ export async function exportarProcessosExcel(processos: Processo[]) {
     views: [{ state: 'frozen', xSplit: 0, ySplit: 8, showGridLines: true }],
   });
 
-  const TOTAL_COLS = 26;
+  const TOTAL_COLS = 28;
 
   // Linha 1: Banner Superior Corporativo Shineray
-  ws.mergeCells('A1:Z1');
+  ws.mergeCells('A1:AB1');
   applyRangeStyle(ws, 1, 1, 1, TOTAL_COLS, '991B1B', mediumBorder);
   const titleCell = ws.getCell('A1');
   titleCell.value = 'SHINERAY DO BRASIL  ·  CONTROLE DE HOMOLOGAÇÃO TÉCNICA E LICENÇAS (INFOSERV / IBAMA)';
@@ -100,7 +103,7 @@ export async function exportarProcessosExcel(processos: Processo[]) {
   ws.getRow(1).height = 34;
 
   // Linha 2: Subtítulo com Data de Emissão e Sistema
-  ws.mergeCells('A2:Z2');
+  ws.mergeCells('A2:AB2');
   applyRangeStyle(ws, 2, 1, 2, TOTAL_COLS, '1E293B', thinBorder);
   const subCell = ws.getCell('A2');
   const dataGeracao = new Date().toLocaleString('pt-BR');
@@ -165,10 +168,10 @@ export async function exportarProcessosExcel(processos: Processo[]) {
   kpi4Val.font = { name: 'Segoe UI', size: 16, bold: true, color: { argb: 'BE123C' } };
   kpi4Val.alignment = { vertical: 'middle', horizontal: 'center' };
 
-  // Card 5: Para Revalidação / Vencidas (Cols S-Z)
-  ws.mergeCells('S4:Z4');
-  ws.mergeCells('S5:Z5');
-  applyRangeStyle(ws, 4, 19, 5, 26, 'FFFBEB', mediumBorder);
+  // Card 5: Para Revalidação / Vencidas (Cols S-AB)
+  ws.mergeCells('S4:AB4');
+  ws.mergeCells('S5:AB5');
+  applyRangeStyle(ws, 4, 19, 5, 28, 'FFFBEB', mediumBorder);
   const kpi5Title = ws.getCell('S4');
   kpi5Title.value = 'ALERTA REVALIDAÇÃO / VENCIMENTO';
   kpi5Title.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: '92400E' } };
@@ -205,7 +208,9 @@ export async function exportarProcessosExcel(processos: Processo[]) {
     { key: 'dataInicio', header: 'Data Início', width: 14, align: 'center' },
     { key: 'dataEnvio', header: 'Data Envio', width: 14, align: 'center' },
     { key: 'dataEmissao', header: 'Data Emissão', width: 14, align: 'center' },
-    { key: 'dataValidade', header: 'Data Validade', width: 15, align: 'center' },
+    { key: 'dataValidade', header: 'Validade Original', width: 16, align: 'center' },
+    { key: 'dataRevalidacao', header: 'Data Revalidação', width: 16, align: 'center' },
+    { key: 'novaDataVencimento', header: 'Novo Vencimento', width: 16, align: 'center' },
     { key: 'statusValidade', header: 'Status Validade', width: 25, align: 'center' },
     { key: 'diasRestantes', header: 'Dias Restantes', width: 16, align: 'center' },
     { key: 'prazoAnalise', header: 'Prazo Análise (Dias)', width: 20, align: 'center' },
@@ -240,7 +245,8 @@ export async function exportarProcessosExcel(processos: Processo[]) {
     const row = ws.getRow(rowNumber);
     row.height = 24;
 
-    const diasRestantes = calcularDiasRestantes(p.dataValidade);
+    const dataEfetiva = obterDataVencimentoEfetiva(p.dataValidade, p.novaDataVencimento);
+    const diasRestantes = calcularDiasRestantes(dataEfetiva);
     const prazoAnalise = calcularDiasSolicitacaoAteEmissao(p.dataEnvio, p.dataEmissao);
     const ultimaObs = p.observacoes && p.observacoes.length > 0
       ? p.observacoes[p.observacoes.length - 1]
@@ -253,7 +259,7 @@ export async function exportarProcessosExcel(processos: Processo[]) {
       } else if (diasRestantes <= 61) {
         statusValidade = `REVALIDAÇÃO (${diasRestantes}d)`;
       } else {
-        statusValidade = `Válida (${diasRestantes}d)`;
+        statusValidade = p.novaDataVencimento ? `Revalidada (${diasRestantes}d)` : `Válida (${diasRestantes}d)`;
       }
     }
 
@@ -280,6 +286,8 @@ export async function exportarProcessosExcel(processos: Processo[]) {
       formatarDataBR(p.dataEnvio),
       formatarDataBR(p.dataEmissao),
       formatarDataBR(p.dataValidade),
+      formatarDataBR(p.dataRevalidacao),
+      formatarDataBR(p.novaDataVencimento),
       statusValidade,
       diasRestantes !== null ? diasRestantes : '-',
       prazoAnalise ? `${prazoAnalise.dias} dias${prazoAnalise.emitido ? '' : ' (em análise)'}` : '-',
@@ -298,7 +306,7 @@ export async function exportarProcessosExcel(processos: Processo[]) {
       cell.alignment = {
         vertical: 'middle',
         horizontal: columns[valIdx].align as any,
-        wrapText: valIdx === 24, // Wrap apenas para a coluna de texto da anotação
+        wrapText: valIdx === 26, // Wrap apenas para a coluna de texto da anotação
       };
 
       // Fundo padrão com zebra
@@ -359,8 +367,22 @@ export async function exportarProcessosExcel(processos: Processo[]) {
         cell.border = thinBorder;
       }
 
-      // Destaque Status Validade
-      if (colNum === 20 && diasRestantes !== null) {
+      // Destaque Data Revalidação
+      if (colNum === 20 && p.dataRevalidacao) {
+        cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'B45309' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FEF3C7' } };
+        cell.border = thinBorder;
+      }
+
+      // Destaque Novo Vencimento
+      if (colNum === 21 && p.novaDataVencimento) {
+        cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: '047857' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'ECFDF5' } };
+        cell.border = thinBorder;
+      }
+
+      // Destaque Status Validade (Coluna 22)
+      if (colNum === 22 && diasRestantes !== null) {
         cell.border = thinBorder;
         if (diasRestantes <= 0) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FEE2E2' } };
