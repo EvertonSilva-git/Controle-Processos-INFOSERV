@@ -358,15 +358,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            {/* Indicador de Autosave a cada 10s */}
-            <div
-              title="Salvamento automático ativo: grava alterações no banco de dados local a cada 10 segundos"
-              className="hidden lg:inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/80 select-none"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Autosave 10s</span>
-            </div>
-
             {/* Botão de Exportar para Excel (.xlsx) - tamanho compacto e discreto */}
             <button
               onClick={onExportExcel}

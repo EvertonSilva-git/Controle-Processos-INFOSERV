@@ -391,7 +391,11 @@ export function obterSituacoesPermitidas(
   tipo: ProcessoTipo,
   isExtensao?: boolean
 ): SituacaoProcesso[] {
-  if (tipo === 'Dispensa' || tipo === 'Extensão' || isExtensao) {
+  // Regra: Extensões devem sempre estar em situação Emitida
+  if (tipo === 'Extensão' || isExtensao) {
+    return ['Licença/Certidão emitida'];
+  }
+  if (tipo === 'Dispensa') {
     return [
       'Em edição',
       'Encaminhada para o ibama',

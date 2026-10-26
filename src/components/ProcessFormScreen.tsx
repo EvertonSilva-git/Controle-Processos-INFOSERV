@@ -31,6 +31,7 @@ import {
   Timer,
   RefreshCw,
   Trash2,
+  CheckCircle2,
 } from 'lucide-react';
 import { AddCnpjModal } from './AddCnpjModal';
 import { DeleteProcessModal } from './DeleteProcessModal';
@@ -271,8 +272,12 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
   const [erros, setErros] = useState<{ [key: string]: string }>({});
   const [sucesso, setSucesso] = useState(false);
 
-  // Synchronize situacao when tipo or isExtensao changes
+  // Synchronize situacao when tipo or isExtensao changes (Extensões sempre Emitidas)
   useEffect(() => {
+    if (tipo === 'Extensão' || isExtensaoProcesso) {
+      setSituacao('Licença/Certidão emitida');
+      return;
+    }
     const permitidas = obterSituacoesPermitidas(tipo, isExtensaoProcesso);
     if (!permitidas.includes(situacao)) {
       setSituacao(permitidas[0]);
@@ -379,7 +384,7 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
       quantidade: !qtdConfig.isOmitted ? quantidade.trim() : undefined,
       tipoVeiculo,
       dataInicio,
-      situacao,
+      situacao: (isExtensaoProcesso || tipo === 'Extensão') ? 'Licença/Certidão emitida' : situacao,
       cnpj: cnpj.trim() || undefined,
       dataEnvio: dataEnvio || undefined,
       dataEmissao: dataEmissao || undefined,
@@ -941,7 +946,7 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                 <div className="px-3 py-2 rounded-lg border border-dashed border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-neutral-400 text-xs">
                   Não aplicável para {tipo} (campo omitido)
                 </div>
-              ) : tipo === 'LCM Especial' && !qtdConfig.isInput ? (
+              ) : (tipo === 'LCVM Especial' || (tipo === 'LCM Especial' && !qtdConfig.isInput)) ? (
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-2.5">
                     {['1', '2'].map((val) => {
@@ -974,7 +979,7 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                     })}
                   </div>
                   <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                    Para <strong>LCM Especial</strong> ({tipoVeiculo}), a quantidade padrão é de <strong>1</strong> ou <strong>2</strong> veículos.
+                    Para <strong>{tipo}</strong> ({tipoVeiculo}), a quantidade regulamentar é de <strong>1</strong> ou <strong>2</strong> veículos.
                   </p>
                 </div>
               ) : qtdConfig.isInput ? (
@@ -1104,29 +1109,47 @@ export const ProcessFormScreen: React.FC<ProcessFormScreenProps> = ({
                 <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                   10. Situação Atual <span className="text-[#E30613]">*</span>
                 </label>
-                {(tipo === 'Dispensa' || isExtensaoProcesso) && (
+                {(tipo === 'Extensão' || isExtensaoProcesso) ? (
+                  <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                    Sempre Emitida
+                  </span>
+                ) : tipo === 'Dispensa' ? (
                   <span className="text-[10px] font-semibold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 px-2 py-0.5 rounded border border-sky-200 dark:border-sky-800">
                     Fluxo simplificado: 3 situações
                   </span>
-                )}
+                ) : null}
               </div>
-              <select
-                value={situacao}
-                disabled={isVisitante}
-                onChange={(e) => setSituacao(e.target.value as SituacaoProcesso)}
-                className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
-                  isVisitante ? 'opacity-70 cursor-not-allowed' : ''
-                }`}
-              >
-                {situacoesPermitidas.map((sit) => (
-                  <option key={sit} value={sit}>
-                    {sit}
-                  </option>
-                ))}
-              </select>
+              {(tipo === 'Extensão' || isExtensaoProcesso) ? (
+                <div className="flex items-center justify-between p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 font-semibold text-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Licença/Certidão emitida</span>
+                  </div>
+                  <span className="text-[10px] uppercase font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-200/60 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
+                    Fixa
+                  </span>
+                </div>
+              ) : (
+                <select
+                  value={situacao}
+                  disabled={isVisitante}
+                  onChange={(e) => setSituacao(e.target.value as SituacaoProcesso)}
+                  className={`w-full px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 ${
+                    isVisitante ? 'opacity-70 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {situacoesPermitidas.map((sit) => (
+                    <option key={sit} value={sit}>
+                      {sit}
+                    </option>
+                  ))}
+                </select>
+              )}
               <p className="text-[11px] text-neutral-400">
-                {(tipo === 'Dispensa' || isExtensaoProcesso)
-                  ? 'Para Dispensa e Extensão, são aplicáveis apenas: Em edição, Encaminhada para o ibama e Licença/Certidão emitida.'
+                {(tipo === 'Extensão' || isExtensaoProcesso)
+                  ? 'Processos de Extensão permanecem sempre na situação "Licença/Certidão emitida".'
+                  : tipo === 'Dispensa'
+                  ? 'Para Dispensa, são aplicáveis: Em edição, Encaminhada para o ibama e Licença/Certidão emitida.'
                   : 'Status corrente no fluxo regulatório do IBAMA.'}
               </p>
             </div>

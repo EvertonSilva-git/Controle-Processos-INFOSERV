@@ -42,7 +42,10 @@ export const normalizarSituacaoProcesso = (p: Processo): Processo => {
     proc.veiculo = '';
   }
 
-  if (proc.tipo === 'Dispensa' || proc.tipo === 'Extensão' || proc.isExtensao) {
+  // Regra do usuário: Extensões devem sempre estar em situação Emitida
+  if (proc.tipo === 'Extensão' || proc.isExtensao) {
+    proc.situacao = 'Licença/Certidão emitida';
+  } else if (proc.tipo === 'Dispensa') {
     const permitidas: SituacaoProcesso[] = [
       'Em edição',
       'Encaminhada para o ibama',
@@ -430,11 +433,11 @@ export default function App() {
       quantidade: original.quantidade,
       tipoVeiculo: original.tipoVeiculo,
       dataInicio: agora.split('T')[0],
-      situacao: 'Em edição',
+      situacao: 'Licença/Certidão emitida',
       cnpj: original.cnpj,
-      dataEnvio: '',
-      dataEmissao: '',
-      dataValidade: '',
+      dataEnvio: original.dataEnvio || agora.split('T')[0],
+      dataEmissao: original.dataEmissao || agora.split('T')[0],
+      dataValidade: original.dataValidade || '',
       observacoes: [
         {
           id: `obs-${Date.now()}`,

@@ -87,7 +87,13 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
   const setSearchTerm = onSearchTermChange || setInternalSearchTerm;
   const [procedenciaFiltro, setProcedenciaFiltro] = useState<string>('todos');
   const [quantidadeFiltro, setQuantidadeFiltro] = useState<string>('todos');
-  const [cnpjFiltro, setCnpjFiltro] = useState<string | null>(null);
+  const [cnpjFiltro, setCnpjFiltro] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('shineray_cnpj_filtro') || null;
+    } catch {
+      return null;
+    }
+  });
   const [sortBy, setSortBy] = useState<'recentes' | 'validade' | 'solicitacao'>('recentes');
   const [expandedExtensoes, setExpandedExtensoes] = useState<Record<string, boolean>>({});
   const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
@@ -159,6 +165,15 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
 
   const handleSelectCnpj = (novoCnpj: string | null) => {
     setCnpjFiltro(novoCnpj);
+    try {
+      if (novoCnpj) {
+        localStorage.setItem('shineray_cnpj_filtro', novoCnpj);
+      } else {
+        localStorage.removeItem('shineray_cnpj_filtro');
+      }
+    } catch {
+      // ignore
+    }
     if (novoCnpj && tipoFiltro && onTipoFiltroChange) {
       const cleanTarget = novoCnpj.replace(/\D/g, '');
       const temTipoNoCnpj = processos.some((p) => {
@@ -170,6 +185,18 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
       }
     }
   };
+
+  // Informações do CNPJ ativo selecionado (para banner e cartões de situação)
+  const activeCnpjInfo = useMemo(() => {
+    if (!cnpjFiltro) return null;
+    const clean = cnpjFiltro.replace(/\D/g, '');
+    const found = cnpjs?.find((c) => c.raw === clean);
+    return {
+      raw: clean,
+      formatted: found?.formatted || formatarCNPJ(clean),
+      count: processosDoCnpj.length,
+    };
+  }, [cnpjFiltro, cnpjs, processosDoCnpj]);
 
   // Unique quantities present in processes
   const uniqueQuantidades = useMemo(() => {
@@ -184,81 +211,81 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
     return Array.from(set).sort();
   }, [processos]);
 
-  // Counts for tabs
+  // Counts for tabs - vinculados dinamicamente ao CNPJ selecionado (processosDoCnpj)
   const countEmEdicao = useMemo(
-    () => processos.filter((p) => p.situacao === 'Em edição').length,
-    [processos]
+    () => processosDoCnpj.filter((p) => p.situacao === 'Em edição').length,
+    [processosDoCnpj]
   );
 
   const countParaCorrecao = useMemo(
-    () => processos.filter((p) => p.situacao === 'Para correção').length,
-    [processos]
+    () => processosDoCnpj.filter((p) => p.situacao === 'Para correção').length,
+    [processosDoCnpj]
   );
 
   const countEmTramitacao = useMemo(
     () =>
-      processos.filter(
+      processosDoCnpj.filter(
         (p) =>
           p.situacao === 'Encaminhada para o ibama' ||
           p.situacao === 'Em análise pelo Analista do ATC' ||
           p.situacao === 'A pagar'
       ).length,
-    [processos]
+    [processosDoCnpj]
   );
 
   const countLicencasEmitidas = useMemo(
     () =>
-      processos.filter(
+      processosDoCnpj.filter(
         (p) => p.situacao === 'Licença/Certidão emitida' || !!p.numeroLicenca
       ).length,
-    [processos]
+    [processosDoCnpj]
   );
 
   const countParaRevalidacao = useMemo(
-    () => processos.filter((p) => estaParaRevalidar(p.dataValidade, p.situacao, p.novaDataVencimento)).length,
-    [processos]
+    () => processosDoCnpj.filter((p) => estaParaRevalidar(p.dataValidade, p.situacao, p.novaDataVencimento)).length,
+    [processosDoCnpj]
   );
 
   const countComPrazos = useMemo(
     () =>
-      processos.filter((p) => {
+      processosDoCnpj.filter((p) => {
         const calc = calcularDiasSolicitacaoAteEmissao(p.dataEnvio, p.dataEmissao);
         return !!calc?.emitido;
       }).length,
-    [processos]
+    [processosDoCnpj]
   );
 
   const processosParaRevalidar = useMemo(() => {
-    return processos.filter((p) => estaParaRevalidar(p.dataValidade, p.situacao, p.novaDataVencimento));
-  }, [processos]);
+    return processosDoCnpj.filter((p) => estaParaRevalidar(p.dataValidade, p.situacao, p.novaDataVencimento));
+  }, [processosDoCnpj]);
 
-  // Filter processes according to subTab
+  // Filter processes according to subTab - utiliza processosDoCnpj para que a situação filtre dentro do CNPJ
   const subTabFiltered = useMemo(() => {
     switch (currentSubTab) {
       case 'em_edicao':
-        return processos.filter((p) => p.situacao === 'Em edição');
+        return processosDoCnpj.filter((p) => p.situacao === 'Em edição');
       case 'para_correcao':
-        return processos.filter((p) => p.situacao === 'Para correção');
+        return processosDoCnpj.filter((p) => p.situacao === 'Para correção');
       case 'em_tramitacao':
-        return processos.filter(
+        return processosDoCnpj.filter(
           (p) =>
             p.situacao === 'Encaminhada para o ibama' ||
             p.situacao === 'Em análise pelo Analista do ATC' ||
             p.situacao === 'A pagar'
         );
       case 'licencas_emitidas':
-        return processos.filter(
+        return processosDoCnpj.filter(
           (p) => p.situacao === 'Licença/Certidão emitida' || !!p.numeroLicenca
         );
       case 'para_revalidacao':
-        return processos.filter((p) =>
+        return processosDoCnpj.filter((p) =>
           estaParaRevalidar(p.dataValidade, p.situacao, p.novaDataVencimento)
         );
       case 'todos':
       default:
-        return processos;
+        return processosDoCnpj;
     }
-  }, [processos, currentSubTab]);
+  }, [processosDoCnpj, currentSubTab]);
 
   // Apply search, type, provenance, quantity and cnpj filters
   const finalFiltered = useMemo(() => {
@@ -377,8 +404,8 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
     {
       id: 'todos' as ProcessosSubTab,
       label: 'Todos os Processos',
-      description: 'Visão geral consolidada',
-      count: processos.length,
+      description: cnpjFiltro ? `${processosDoCnpj.length} no CNPJ selecionado` : 'Visão geral consolidada',
+      count: processosDoCnpj.length,
       icon: Layers,
     },
   ];
@@ -410,6 +437,34 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
           onVerProcessosRevalidacao={() => onSubTabChange('para_revalidacao')}
           onSelecionarProcesso={(proc) => onEditProcesso(proc)}
         />
+      )}
+
+      {/* Indicador de Filtro Ativo por CNPJ nos Cartões de Situação */}
+      {activeCnpjInfo && (
+        <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 py-2.5 bg-neutral-900 dark:bg-neutral-800 text-white border border-neutral-700/80 rounded-xl shadow-xs animate-in fade-in duration-200">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="flex h-2 w-2 rounded-full bg-[#E30613] animate-pulse" />
+            <span className="text-neutral-300 font-medium">Cartões de situação filtrados por:</span>
+            <span className="font-bold font-mono text-white bg-white/10 px-2.5 py-0.5 rounded border border-white/10">
+              {activeCnpjInfo.formatted}
+            </span>
+            <span className="text-[11px] bg-[#E30613]/25 text-rose-200 border border-[#E30613]/40 px-2 py-0.5 rounded-full font-semibold">
+              {activeCnpjInfo.count} processo{activeCnpjInfo.count === 1 ? '' : 's'}
+            </span>
+            <span className="text-neutral-400 text-[11px] hidden md:inline">
+              · Os cartões de situação acima e abaixo exibem apenas processos desta empresa
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleSelectCnpj(null)}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-200 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            title="Remover filtro e visualizar todos os CNPJs"
+          >
+            <span>Ver Todos os CNPJs</span>
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       )}
 
       {/* Sub-screens Navigation Bar */}
@@ -486,12 +541,23 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
 
       {/* Renderização Condicional: Subtela de Médias e Prazos vs. Lista de Processos */}
       {currentSubTab === 'comparacao_prazos' ? (
-        <LeadTimeComparisonScreen
-          processos={processos}
-          onEditProcesso={onEditProcesso}
-          onOpenObservations={onOpenObservations}
-          onExportExcel={onExportExcel}
-        />
+        <div className="space-y-6">
+          <CnpjFilterCards
+            processos={processos}
+            selectedCnpj={cnpjFiltro}
+            onSelectCnpj={handleSelectCnpj}
+            cnpjs={cnpjs}
+            onAddCnpj={onAddCnpj}
+            onDeleteCnpj={onDeleteCnpj}
+            isVisitante={isVisitante}
+          />
+          <LeadTimeComparisonScreen
+            processos={processosDoCnpj}
+            onEditProcesso={onEditProcesso}
+            onOpenObservations={onOpenObservations}
+            onExportExcel={onExportExcel}
+          />
+        </div>
       ) : (
         <>
           {/* Banner de Aviso de Modo Visitante */}

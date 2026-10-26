@@ -580,6 +580,10 @@ export async function exportarProcessosExcel(processos: Processo[]) {
       itens: processosComPrazosFinalizados,
     },
     {
+      nome: 'Média Regulamentar (Sem Extensões e Dispensas)',
+      itens: processosComPrazosFinalizados.filter((x) => x.p.tipo !== 'Extensão' && !x.p.isExtensao && x.p.tipo !== 'Dispensa'),
+    },
+    {
       nome: 'Órgão IMT (Instituto Mauá de Tecnologia)',
       itens: processosComPrazosFinalizados.filter((x) => (x.p.orgaoCertificador || 'IMT') === 'IMT'),
     },

@@ -29,6 +29,8 @@ import {
   FileSpreadsheet,
   ArrowRight,
   ExternalLink,
+  ShieldCheck,
+  Check,
 } from 'lucide-react';
 
 interface LeadTimeComparisonScreenProps {
@@ -51,6 +53,7 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
   const [filtroCnpj, setFiltroCnpj] = useState<string>('todos');
   const [ordenacao, setOrdenacao] = useState<'rapidos' | 'demorados' | 'recentes' | 'solicitacao'>('rapidos');
   const [termoBusca, setTermoBusca] = useState<string>('');
+  const [descartarExtensoesEDispensasTabela, setDescartarExtensoesEDispensasTabela] = useState<boolean>(false);
 
   // 1. Processos com prazo finalizado computável (Envio -> Emissão)
   const processosComPrazo = useMemo(() => {
@@ -135,6 +138,124 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
       maisDemorado,
     };
   }, [processosComPrazo]);
+
+  // 3.1. Processos com prazo finalizado descartando Extensões e Dispensas
+  const processosSemExtensaoEDispensa = useMemo(() => {
+    return processosComPrazo.filter(
+      (item) =>
+        item.processo.tipo !== 'Extensão' &&
+        !item.processo.isExtensao &&
+        item.processo.tipo !== 'Dispensa'
+    );
+  }, [processosComPrazo]);
+
+  // Contagem de processos descartados (extensões e dispensas)
+  const descartadosContagem = useMemo(() => {
+    const extensoes = processosComPrazo.filter(
+      (i) => i.processo.tipo === 'Extensão' || i.processo.isExtensao
+    ).length;
+    const dispensas = processosComPrazo.filter(
+      (i) => i.processo.tipo === 'Dispensa' && !i.processo.isExtensao
+    ).length;
+    return {
+      extensoes,
+      dispensas,
+      total: extensoes + dispensas,
+    };
+  }, [processosComPrazo]);
+
+  // 3.2. Estatísticas Regulamentares Excluindo Extensões e Dispensas
+  const statsSemExtensaoEDispensa = useMemo(() => {
+    if (processosSemExtensaoEDispensa.length === 0) {
+      return {
+        total: 0,
+        media: 0,
+        mediana: 0,
+        min: 0,
+        max: 0,
+        maisRapido: null,
+        maisDemorado: null,
+        diferencaVsGlobal: 0,
+        orgaos: {
+          imt: { total: 0, media: 0 },
+          cetesb: { total: 0, media: 0 },
+        },
+        procedencias: {
+          nacional: { total: 0, media: 0 },
+          importado: { total: 0, media: 0 },
+        },
+      };
+    }
+
+    const valores = processosSemExtensaoEDispensa.map((item) => item.dias).sort((a, b) => a - b);
+    const soma = valores.reduce((acc, curr) => acc + curr, 0);
+    const media = Number((soma / valores.length).toFixed(1));
+
+    const meio = Math.floor(valores.length / 2);
+    const mediana =
+      valores.length % 2 !== 0
+        ? valores[meio]
+        : Number(((valores[meio - 1] + valores[meio]) / 2).toFixed(1));
+
+    const min = valores[0];
+    const max = valores[valores.length - 1];
+    const maisRapido = processosSemExtensaoEDispensa.find((item) => item.dias === min) || null;
+    const maisDemorado = processosSemExtensaoEDispensa.find((item) => item.dias === max) || null;
+    const diferencaVsGlobal = Number((media - statsGerais.media).toFixed(1));
+
+    // Por órgão
+    const imtItens = processosSemExtensaoEDispensa.filter(
+      (x) => (x.processo.orgaoCertificador || 'IMT') === 'IMT'
+    );
+    const cetesbItens = processosSemExtensaoEDispensa.filter(
+      (x) => x.processo.orgaoCertificador === 'CETESB'
+    );
+
+    const mediaImt =
+      imtItens.length > 0
+        ? Number((imtItens.reduce((a, b) => a + b.dias, 0) / imtItens.length).toFixed(1))
+        : 0;
+    const mediaCetesb =
+      cetesbItens.length > 0
+        ? Number((cetesbItens.reduce((a, b) => a + b.dias, 0) / cetesbItens.length).toFixed(1))
+        : 0;
+
+    // Por procedência
+    const nacItens = processosSemExtensaoEDispensa.filter(
+      (x) => x.processo.procedencia === 'Nacional'
+    );
+    const impItens = processosSemExtensaoEDispensa.filter(
+      (x) => x.processo.procedencia === 'Importado'
+    );
+
+    const mediaNac =
+      nacItens.length > 0
+        ? Number((nacItens.reduce((a, b) => a + b.dias, 0) / nacItens.length).toFixed(1))
+        : 0;
+    const mediaImp =
+      impItens.length > 0
+        ? Number((impItens.reduce((a, b) => a + b.dias, 0) / impItens.length).toFixed(1))
+        : 0;
+
+    return {
+      total: processosSemExtensaoEDispensa.length,
+      media,
+      mediana,
+      min,
+      max,
+      maisRapido,
+      maisDemorado,
+      diferencaVsGlobal,
+      orgaos: {
+        imt: { total: imtItens.length, media: mediaImt },
+        cetesb: { total: cetesbItens.length, media: mediaCetesb },
+      },
+      procedencias: {
+        nacional: { total: nacItens.length, media: mediaNac },
+        importado: { total: impItens.length, media: mediaImp },
+      },
+    };
+  }, [processosSemExtensaoEDispensa, statsGerais.media]);
 
   // 4. Comparativo por Órgão Certificador (IMT vs. CETESB)
   const statsPorOrgao = useMemo(() => {
@@ -253,6 +374,17 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
           if (pClean !== filtroCnpj) return false;
         }
 
+        // Filtro de Descarte de Extensões e Dispensas
+        if (descartarExtensoesEDispensasTabela) {
+          if (
+            item.processo.tipo === 'Extensão' ||
+            item.processo.isExtensao ||
+            item.processo.tipo === 'Dispensa'
+          ) {
+            return false;
+          }
+        }
+
         // Busca por texto
         if (termoBusca.trim()) {
           const q = termoBusca.toLowerCase().trim();
@@ -281,7 +413,7 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
         }
         return 0;
       });
-  }, [processosComPrazo, filtroOrgao, filtroTipo, filtroProcedencia, filtroCnpj, ordenacao, termoBusca]);
+  }, [processosComPrazo, filtroOrgao, filtroTipo, filtroProcedencia, filtroCnpj, ordenacao, termoBusca, descartarExtensoesEDispensasTabela]);
 
   // Maior tempo entre todos para calcular a barra relativa
   const maxDiasGeral = Math.max(statsGerais.max || 1, 60);
@@ -333,6 +465,209 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
                 <span className="hidden sm:inline">Exportar Excel</span>
               </button>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Quadro Especial de Médias: Descartando Extensões e Dispensas */}
+      <div className="bg-gradient-to-br from-emerald-50/90 via-white to-neutral-50 dark:from-emerald-950/30 dark:via-neutral-900 dark:to-neutral-900 border-2 border-emerald-500/40 dark:border-emerald-600/40 rounded-2xl p-5 sm:p-6 shadow-sm space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-emerald-200/60 dark:border-emerald-800/40 pb-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-xl bg-emerald-600 text-white shadow-xs shrink-0 mt-0.5">
+              <ShieldCheck className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base sm:text-lg font-extrabold text-neutral-900 dark:text-white tracking-tight">
+                  Quadro de Médias · Descartando Extensões e Dispensas
+                </h3>
+                <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                  Homologações Plenas
+                </span>
+              </div>
+              <p className="text-xs text-neutral-600 dark:text-neutral-300 mt-1 max-w-3xl leading-relaxed">
+                Média calculada exclusivamente sobre processos de certificação completa de veículos (<strong>LCVM, LCVM Especial, LCM e LCM Especial</strong>). Exclui extensões técnicas (que herdam licença matriz) e dispensas de protótipos para fornecer o lead time regulatório puro do órgão.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start md:self-center shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setDescartarExtensoesEDispensasTabela((prev) => !prev)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                descartarExtensoesEDispensasTabela
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-white dark:bg-neutral-800 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+              }`}
+              title="Filtra a tabela detalhada abaixo para exibir apenas estes processos plenos"
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>
+                {descartarExtensoesEDispensasTabela
+                  ? 'Filtro Ativo na Tabela'
+                  : 'Filtrar Tabela Abaixo'}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Indicadores Centrais do Quadro Sem Extensões e Dispensas */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* 1. Média Pura */}
+          <div className="p-4 rounded-xl bg-white dark:bg-neutral-850 border border-emerald-200/80 dark:border-emerald-800/60 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between text-neutral-500 dark:text-neutral-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
+                Lead Time Médio Pleno
+              </span>
+              <span className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                <Timer className="w-3.5 h-3.5" />
+              </span>
+            </div>
+            <div className="mt-2">
+              <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-700 dark:text-emerald-300">
+                {statsSemExtensaoEDispensa.media} <span className="text-xs font-semibold text-neutral-500">dias</span>
+              </div>
+              <div className="text-[11px] font-medium mt-1 flex items-center gap-1 text-neutral-600 dark:text-neutral-400">
+                {statsSemExtensaoEDispensa.diferencaVsGlobal === 0 ? (
+                  <span>Igual à média global</span>
+                ) : statsSemExtensaoEDispensa.diferencaVsGlobal > 0 ? (
+                  <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                    ↑ +{statsSemExtensaoEDispensa.diferencaVsGlobal}d vs média c/ ext/disp
+                  </span>
+                ) : (
+                  <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                    ↓ {statsSemExtensaoEDispensa.diferencaVsGlobal}d vs média c/ ext/disp
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Mediana Pura */}
+          <div className="p-4 rounded-xl bg-white dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between text-neutral-500 dark:text-neutral-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider">
+                Mediana Plena
+              </span>
+              <span className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+                <Scale className="w-3.5 h-3.5" />
+              </span>
+            </div>
+            <div className="mt-2">
+              <div className="text-2xl sm:text-3xl font-black font-mono text-neutral-900 dark:text-white">
+                {statsSemExtensaoEDispensa.mediana} <span className="text-xs font-semibold text-neutral-500">dias</span>
+              </div>
+              <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                50% das homologações completas
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Amostragem Pura & Descarte */}
+          <div className="p-4 rounded-xl bg-white dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between text-neutral-500 dark:text-neutral-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider">
+                Amostragem Pura
+              </span>
+              <span className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+                <Layers className="w-3.5 h-3.5" />
+              </span>
+            </div>
+            <div className="mt-2">
+              <div className="text-2xl sm:text-3xl font-black font-mono text-neutral-900 dark:text-white">
+                {statsSemExtensaoEDispensa.total}{' '}
+                <span className="text-xs font-semibold text-neutral-500">processos</span>
+              </div>
+              <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                Descartados: {descartadosContagem.extensoes} ext + {descartadosContagem.dispensas} disp
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Menor / Maior Prazo Pleno */}
+          <div className="p-4 rounded-xl bg-white dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between text-neutral-500 dark:text-neutral-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider">
+                Faixa Operacional
+              </span>
+              <span className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
+                <Hourglass className="w-3.5 h-3.5" />
+              </span>
+            </div>
+            <div className="mt-2">
+              <div className="text-lg sm:text-xl font-bold font-mono text-neutral-900 dark:text-white flex items-center gap-1.5">
+                <span className="text-emerald-600 dark:text-emerald-400">{statsSemExtensaoEDispensa.min}d</span>
+                <span className="text-neutral-300 dark:text-neutral-600 font-normal">→</span>
+                <span className="text-amber-600 dark:text-amber-400">{statsSemExtensaoEDispensa.max}d</span>
+              </div>
+              <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 truncate" title={statsSemExtensaoEDispensa.maisRapido?.processo.mmv}>
+                {statsSemExtensaoEDispensa.maisRapido ? `Mais ágil: ${statsSemExtensaoEDispensa.maisRapido.processo.numeroSolicitacao}` : 'Sem dados'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sub-painéis comparativos dentro do Quadro (Órgãos e Procedências sem Ext/Disp) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1">
+          {/* Órgãos sem Ext/Disp */}
+          <div className="p-3.5 rounded-xl bg-white/80 dark:bg-neutral-850/80 border border-neutral-200/80 dark:border-neutral-800 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-xs font-bold text-neutral-700 dark:text-neutral-300 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+              <span className="flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-[#E30613]" />
+                Órgãos Técnicos (Apenas Homologações Plenas)
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-2.5 text-xs">
+              <div className="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60">
+                <div className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">IMT</div>
+                <div className="text-lg font-mono font-extrabold text-neutral-900 dark:text-white mt-0.5">
+                  {statsSemExtensaoEDispensa.orgaos.imt.total > 0 ? `${statsSemExtensaoEDispensa.orgaos.imt.media} dias` : '-'}
+                </div>
+                <div className="text-[10px] text-neutral-400">
+                  {statsSemExtensaoEDispensa.orgaos.imt.total} licença(s)
+                </div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60">
+                <div className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">CETESB</div>
+                <div className="text-lg font-mono font-extrabold text-neutral-900 dark:text-white mt-0.5">
+                  {statsSemExtensaoEDispensa.orgaos.cetesb.total > 0 ? `${statsSemExtensaoEDispensa.orgaos.cetesb.media} dias` : '-'}
+                </div>
+                <div className="text-[10px] text-neutral-400">
+                  {statsSemExtensaoEDispensa.orgaos.cetesb.total} licença(s)
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Procedência sem Ext/Disp */}
+          <div className="p-3.5 rounded-xl bg-white/80 dark:bg-neutral-850/80 border border-neutral-200/80 dark:border-neutral-800 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-xs font-bold text-neutral-700 dark:text-neutral-300 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+              <span className="flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                Procedência (Apenas Homologações Plenas)
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-2.5 text-xs">
+              <div className="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60">
+                <div className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">Nacional</div>
+                <div className="text-lg font-mono font-extrabold text-neutral-900 dark:text-white mt-0.5">
+                  {statsSemExtensaoEDispensa.procedencias.nacional.total > 0 ? `${statsSemExtensaoEDispensa.procedencias.nacional.media} dias` : '-'}
+                </div>
+                <div className="text-[10px] text-neutral-400">
+                  {statsSemExtensaoEDispensa.procedencias.nacional.total} licença(s)
+                </div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60">
+                <div className="text-[11px] font-bold text-neutral-600 dark:text-neutral-400">Importado</div>
+                <div className="text-lg font-mono font-extrabold text-neutral-900 dark:text-white mt-0.5">
+                  {statsSemExtensaoEDispensa.procedencias.importado.total > 0 ? `${statsSemExtensaoEDispensa.procedencias.importado.media} dias` : '-'}
+                </div>
+                <div className="text-[10px] text-neutral-400">
+                  {statsSemExtensaoEDispensa.procedencias.importado.total} licença(s)
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -830,6 +1165,21 @@ export const LeadTimeComparisonScreen: React.FC<LeadTimeComparisonScreenProps> =
               <option value="recentes">Mais Recentes</option>
               <option value="solicitacao">Nº Solicitação</option>
             </select>
+
+            {/* Toggle para Descartar Extensões e Dispensas na Tabela */}
+            <button
+              type="button"
+              onClick={() => setDescartarExtensoesEDispensasTabela((prev) => !prev)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                descartarExtensoesEDispensasTabela
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-750'
+              }`}
+              title="Alternar descarte de extensões e dispensas desta listagem detalhada"
+            >
+              <Filter className="w-3 h-3" />
+              <span>{descartarExtensoesEDispensasTabela ? 'Sem Ext/Disp (Ativo)' : 'Descartar Ext/Disp'}</span>
+            </button>
           </div>
         </div>
 
