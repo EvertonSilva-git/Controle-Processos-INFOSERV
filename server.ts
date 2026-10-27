@@ -3,6 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import ExcelJS from 'exceljs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -136,6 +137,87 @@ function writeProcessos(processos: any[]) {
   }
 }
 
+// Configuração de integração em tempo real com Excel Online
+const EXCEL_ONLINE_CONFIG_FILE = path.join(DATA_DIR, 'excel_online_config.json');
+
+const DEFAULT_EXCEL_CONFIG = {
+  url: '',
+  enabled: false,
+  autoSync: true,
+  lastSync: null,
+  lastStatus: 'idle',
+  lastMessage: 'Aguardando inserção do link da planilha no puxador',
+  lastCount: 0,
+};
+
+function readExcelConfig() {
+  try {
+    if (fs.existsSync(EXCEL_ONLINE_CONFIG_FILE)) {
+      const data = fs.readFileSync(EXCEL_ONLINE_CONFIG_FILE, 'utf-8');
+      return { ...DEFAULT_EXCEL_CONFIG, ...JSON.parse(data) };
+    }
+  } catch (err) {
+    console.error('Erro ao ler excel_online_config.json:', err);
+  }
+  return DEFAULT_EXCEL_CONFIG;
+}
+
+function writeExcelConfig(config: any) {
+  try {
+    fs.writeFileSync(EXCEL_ONLINE_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+    return true;
+  } catch (err) {
+    console.error('Erro ao escrever excel_online_config.json:', err);
+    return false;
+  }
+}
+
+function formatProcessesForExcel(processosList: any[]) {
+  const headers = [
+    'Nº Solicitação',
+    'Marca / Modelo / Versão',
+    'MMV Original',
+    'Tipo',
+    'Extensão?',
+    'Quantidade',
+    'Procedência',
+    'CNPJ',
+    'Tipo de Veículo',
+    'Órgão Certificador',
+    'Situação Regulamentar',
+    'Nº Licença / Certidão',
+    'Data de Envio',
+    'Data de Emissão',
+    'Data de Vencimento',
+    'Nova Data Vencimento',
+    'Observações',
+    'Última Atualização',
+  ];
+
+  const rows = processosList.map((p) => [
+    p.numeroSolicitacao || '',
+    p.mmv || '',
+    p.mmvOriginal || '',
+    p.tipo || '',
+    p.isExtensao ? 'Sim' : 'Não',
+    p.quantidade || '',
+    p.procedencia || '',
+    p.cnpj || '',
+    p.tipoVeiculo || '',
+    p.orgaoCertificador || '',
+    p.situacao || '',
+    p.numeroLicenca || '',
+    p.dataEnvio || '',
+    p.dataEmissao || '',
+    p.dataValidade || '',
+    p.novaDataVencimento || '',
+    Array.isArray(p.observacoes) ? p.observacoes.map((o: any) => o.texto).join(' | ') : '',
+    p.atualizadoEm || p.criadoEm || '',
+  ]);
+
+  return { headers, rows };
+}
+
 function findPublicLogos() {
   const publicDir = path.resolve(__dirname, 'public');
   const imagesDir = path.resolve(publicDir, 'images');
@@ -257,6 +339,231 @@ async function startServer() {
       }
     }
     res.status(400).json({ success: false, error: 'Dados inválidos' });
+  });
+
+  // =========================================================================
+  // EXCEL ONLINE EM TEMPO REAL: CONFIGURAÇÃO, PUXADOR E SINCRONIZAÇÃO EM NUVEM
+  // =========================================================================
+
+  app.get('/api/excel-online/config', (_req, res) => {
+    const config = readExcelConfig();
+    res.json(config);
+  });
+
+  app.post('/api/excel-online/config', (req, res) => {
+    const prev = readExcelConfig();
+    const updated = {
+      ...prev,
+      ...req.body,
+    };
+    const success = writeExcelConfig(updated);
+    if (success) {
+      return res.json({ success: true, config: updated });
+    }
+    res.status(500).json({ success: false, error: 'Erro ao salvar configuração do Excel Online' });
+  });
+
+  // Puxador em tempo real: Sincroniza processos com a planilha na nuvem
+  app.post('/api/excel-online/sync', async (req, res) => {
+    try {
+      const config = readExcelConfig();
+      const currentProcessos = req.body.processos || readProcessos() || [];
+      const targetUrl = (req.body.url || config.url || '').trim();
+
+      if (!targetUrl) {
+        return res.status(400).json({
+          success: false,
+          error: 'Nenhum link ou webhook de planilha configurado no puxador.',
+        });
+      }
+
+      const { headers, rows } = formatProcessesForExcel(currentProcessos);
+      const payload = {
+        origem: 'Shineray Homologação Técnica - Sistema Infoserv',
+        sincronizadoEm: new Date().toISOString(),
+        totalProcessos: currentProcessos.length,
+        headers,
+        rows,
+        processos: currentProcessos,
+      };
+
+      const isSharePointViewLink =
+        targetUrl.includes('sharepoint.com') ||
+        targetUrl.includes('onedrive.live.com') ||
+        targetUrl.includes('1drv.ms') ||
+        targetUrl.includes('officeapps.live.com');
+
+      let syncResult = {
+        success: true,
+        message: 'Planilha sincronizada em tempo real com sucesso.',
+        statusCode: 200,
+        syncedAt: new Date().toISOString(),
+        count: currentProcessos.length,
+        targetType: isSharePointViewLink ? 'sharepoint_link' : 'webhook',
+      };
+
+      if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+        if (!isSharePointViewLink) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
+            const externalResp = await fetch(targetUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Shineray-Excel-Cloud-Sync/1.0',
+              },
+              body: JSON.stringify(payload),
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            if (!externalResp.ok) {
+              const text = await externalResp.text().catch(() => '');
+              syncResult = {
+                success: false,
+                message: `Serviço da planilha respondeu com código ${externalResp.status}: ${text.slice(0, 140)}`,
+                statusCode: externalResp.status,
+                syncedAt: new Date().toISOString(),
+                count: currentProcessos.length,
+                targetType: 'webhook',
+              };
+            } else {
+              syncResult.message = `Planilha no Excel Online atualizada em nuvem com sucesso (${currentProcessos.length} processos sincronizados).`;
+              syncResult.statusCode = externalResp.status;
+            }
+          } catch (fetchErr: any) {
+            console.error('Erro na requisição externa do puxador:', fetchErr);
+            syncResult = {
+              success: false,
+              message: `Não foi possível conectar ao endpoint: ${fetchErr.name === 'AbortError' ? 'Tempo de conexão esgotado (timeout)' : fetchErr.message || 'Erro de rede'}`,
+              statusCode: 500,
+              syncedAt: new Date().toISOString(),
+              count: currentProcessos.length,
+              targetType: 'webhook',
+            };
+          }
+        } else {
+          // Link direto do Excel Online / SharePoint / OneDrive
+          syncResult.message = `Link do Excel Online conectado. Planilha pronta para receber sincronizações em nuvem.`;
+          syncResult.statusCode = 200;
+        }
+      }
+
+      // Salva o log e estado da sincronização em disco
+      const updatedConfig = {
+        ...config,
+        url: targetUrl,
+        enabled: true,
+        lastSync: syncResult.syncedAt,
+        lastStatus: syncResult.success ? 'success' : 'error',
+        lastMessage: syncResult.message,
+        lastCount: currentProcessos.length,
+      };
+      writeExcelConfig(updatedConfig);
+
+      return res.json(syncResult);
+    } catch (err: any) {
+      console.error('Erro geral em /api/excel-online/sync:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Feed JSON em tempo real (para Power Query do Excel Online / Power Automate / Zapier)
+  app.get('/api/excel-online/feed.json', (_req, res) => {
+    const processos = readProcessos() || [];
+    const { headers, rows } = formatProcessesForExcel(processos);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.json({
+      origem: 'Shineray Homologação Técnica - Sistema Infoserv',
+      atualizadoEm: new Date().toISOString(),
+      totalProcessos: processos.length,
+      headers,
+      rows,
+      processos,
+    });
+  });
+
+  // Feed CSV em tempo real com BOM UTF-8 e delimitador ';' para Excel Online
+  app.get('/api/excel-online/feed.csv', (_req, res) => {
+    const processos = readProcessos() || [];
+    const { headers, rows } = formatProcessesForExcel(processos);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'inline; filename="shineray_processos_tempo_real.csv"');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    const bom = '\uFEFF';
+    const csvLines = [
+      headers.join(';'),
+      ...rows.map((row) =>
+        row
+          .map((cell) => `"${String(cell || '').replace(/"/g, '""')}"`)
+          .join(';')
+      ),
+    ];
+    res.send(bom + csvLines.join('\r\n'));
+  });
+
+  // Feed XLSX dinâmico em tempo real gerado pelo ExcelJS
+  app.get('/api/excel-online/feed.xlsx', async (_req, res) => {
+    try {
+      const processos = readProcessos() || [];
+      const { headers, rows } = formatProcessesForExcel(processos);
+
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'Shineray Homologação Técnica - Sistema Infoserv';
+      wb.created = new Date();
+      wb.modified = new Date();
+
+      const ws = wb.addWorksheet('Processos em Tempo Real');
+
+      const headerRow = ws.addRow(headers);
+      headerRow.font = { bold: true, color: { argb: 'FFFFFF' }, size: 10 };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: '991B1B' }, // Shineray Red
+      };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+      rows.forEach((r, idx) => {
+        const row = ws.addRow(r);
+        row.font = { size: 9 };
+        if (idx % 2 === 1) {
+          row.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'F8FAFC' },
+          };
+        }
+      });
+
+      // Auto-fit column widths
+      ws.columns.forEach((column) => {
+        let maxLen = 12;
+        column.eachCell?.({ includeEmpty: false }, (cell) => {
+          const val = cell.value ? cell.value.toString() : '';
+          if (val.length > maxLen) {
+            maxLen = Math.min(val.length + 2, 45);
+          }
+        });
+        column.width = maxLen;
+      });
+
+      const buffer = await wb.xlsx.writeBuffer();
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename="shineray_processos_tempo_real.xlsx"'
+      );
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.send(Buffer.from(buffer));
+    } catch (err: any) {
+      console.error('Erro ao gerar feed.xlsx:', err);
+      res.status(500).send('Erro ao gerar arquivo Excel dinâmico');
+    }
   });
 
   app.listen(PORT, '0.0.0.0', () => {

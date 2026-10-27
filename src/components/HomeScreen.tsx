@@ -36,6 +36,7 @@ interface HomeScreenProps {
   onNavigateToCadastro: () => void;
   onSelectProcesso: (processo: Processo) => void;
   onOpenMigration?: () => void;
+  onOpenExcelOnline?: () => void;
   isVisitante?: boolean;
 }
 
@@ -45,6 +46,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToCadastro,
   onSelectProcesso,
   onOpenMigration,
+  onOpenExcelOnline,
   isVisitante = false,
 }) => {
   const totalProcessos = processos.length;
@@ -195,6 +197,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               >
                 <Cloud className="w-3.5 h-3.5 text-[#E30613]" />
                 <span>Migração Nuvem</span>
+              </button>
+            )}
+
+            {onOpenExcelOnline && (
+              <button
+                onClick={onOpenExcelOnline}
+                title="Integrar dados dos processos com uma planilha no Excel Online em tempo real na nuvem"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 transition-all shadow-xs hover:shadow-sm cursor-pointer"
+              >
+                <Cloud className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Excel Online</span>
               </button>
             )}
           </div>

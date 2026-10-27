@@ -25,6 +25,8 @@ interface NavbarProps {
   totalProcessos: number;
   totalRevalidar: number;
   onExportExcel: () => void;
+  onOpenExcelOnline?: () => void;
+  isExcelOnlineSyncActive?: boolean;
   onOpenMigration?: () => void;
   onResetData: () => void;
   theme: 'light' | 'dark';
@@ -44,6 +46,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   totalProcessos,
   totalRevalidar,
   onExportExcel,
+  onOpenExcelOnline,
+  isExcelOnlineSyncActive = false,
   onOpenMigration,
   onResetData,
   theme,
@@ -365,8 +369,31 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="h-8 px-2 sm:px-2.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 rounded-lg transition-colors flex items-center gap-1 shadow-2xs cursor-pointer shrink-0"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-[11px] font-semibold hidden md:inline">Excel</span>
+              <span className="text-[11px] font-semibold hidden lg:inline">Excel</span>
             </button>
+
+            {/* Botão de Integração com Excel Online em Tempo Real (Puxador) */}
+            {onOpenExcelOnline && (
+              <button
+                onClick={onOpenExcelOnline}
+                title="Integrar dados dos processos com uma planilha no Excel Online em tempo real na nuvem"
+                className={`h-8 px-2 sm:px-2.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0 border ${
+                  isExcelOnlineSyncActive
+                    ? 'text-emerald-800 dark:text-emerald-200 bg-emerald-100/90 dark:bg-emerald-950/80 border-emerald-400 dark:border-emerald-700'
+                    : 'text-neutral-700 dark:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700'
+                }`}
+              >
+                <div className="relative flex items-center">
+                  <Cloud className={`w-3.5 h-3.5 ${isExcelOnlineSyncActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-emerald-600'}`} />
+                  {isExcelOnlineSyncActive && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 animate-pulse ring-2 ring-white dark:ring-neutral-900" />
+                  )}
+                </div>
+                <span className="text-[11px] font-semibold hidden md:inline">
+                  {isExcelOnlineSyncActive ? 'Excel Online' : 'Excel Online'}
+                </span>
+              </button>
+            )}
 
             {/* Botão de Migração entre Nuvens / Backup Completo */}
             {onOpenMigration && (

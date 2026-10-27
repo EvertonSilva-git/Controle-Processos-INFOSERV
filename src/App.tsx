@@ -10,6 +10,8 @@ import { ProcessesScreen } from './components/ProcessesScreen';
 import { ObservationModal } from './components/ObservationModal';
 import { EditProcessModal } from './components/EditProcessModal';
 import { MigrationModal } from './components/MigrationModal';
+import { ExcelOnlineModal } from './components/ExcelOnlineModal';
+import { ExcelOnlineConfig } from './types/excelOnline';
 import {
   MigrationPackage,
   mergeMigrationProcessos,
@@ -264,6 +266,51 @@ export default function App() {
   const [observacaoModalProcesso, setObservacaoModalProcesso] = useState<Processo | null>(null);
   const [editModalProcesso, setEditModalProcesso] = useState<Processo | null>(null);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isExcelOnlineModalOpen, setIsExcelOnlineModalOpen] = useState(false);
+  const [excelOnlineConfig, setExcelOnlineConfig] = useState<ExcelOnlineConfig | null>(null);
+
+  // Carrega configuração de sincronização com Excel Online
+  useEffect(() => {
+    fetch('/api/excel-online/config')
+      .then((r) => r.json())
+      .then((data) => setExcelOnlineConfig(data))
+      .catch((err) => console.error('Erro ao ler config do Excel Online:', err));
+  }, []);
+
+  // Sincronização em tempo real na nuvem sempre que a lista de processos for alterada
+  useEffect(() => {
+    if (!excelOnlineConfig?.enabled || !excelOnlineConfig?.autoSync || !excelOnlineConfig?.url) {
+      return;
+    }
+
+    // Debounce suave de 1.2s para evitar chamadas duplicadas durante digitação rápida
+    const timer = setTimeout(() => {
+      fetch('/api/excel-online/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ processos }),
+      })
+        .then((r) => r.json())
+        .then((res) => {
+          if (res.success) {
+            setExcelOnlineConfig((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    lastSync: res.syncedAt,
+                    lastStatus: 'success',
+                    lastCount: res.count,
+                    lastMessage: res.message,
+                  }
+                : prev
+            );
+          }
+        })
+        .catch((err) => console.error('Erro no sync em tempo real do Excel Online:', err));
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [processos, excelOnlineConfig?.enabled, excelOnlineConfig?.autoSync, excelOnlineConfig?.url]);
 
   const handleSaveProcesso = (novoOuAtualizado: Processo) => {
     if (currentUser === 'Visitante') {
@@ -722,6 +769,8 @@ export default function App() {
         totalProcessos={processos.length}
         totalRevalidar={totalRevalidar}
         onExportExcel={handleExportExcel}
+        onOpenExcelOnline={() => setIsExcelOnlineModalOpen(true)}
+        isExcelOnlineSyncActive={Boolean(excelOnlineConfig?.enabled && excelOnlineConfig?.url)}
         onOpenMigration={() => setIsMigrationModalOpen(true)}
         onResetData={handleResetData}
         theme={theme}
@@ -759,6 +808,7 @@ export default function App() {
               setObservacaoModalProcesso(p);
             }}
             onOpenMigration={() => setIsMigrationModalOpen(true)}
+            onOpenExcelOnline={() => setIsExcelOnlineModalOpen(true)}
             isVisitante={isVisitante}
           />
         )}
@@ -819,6 +869,7 @@ export default function App() {
             onSearchTermChange={setSearchQuery}
             onExportExcel={handleExportExcel}
             onOpenMigration={() => setIsMigrationModalOpen(true)}
+            onOpenExcelOnline={() => setIsExcelOnlineModalOpen(true)}
             currentUser={currentUser}
             isVisitante={isVisitante}
           />
@@ -854,6 +905,19 @@ export default function App() {
         currentUser={currentUser}
         isVisitante={isVisitante}
         onApplyMigration={handleApplyMigration}
+      />
+
+      <ExcelOnlineModal
+        isOpen={isExcelOnlineModalOpen}
+        onClose={() => {
+          setIsExcelOnlineModalOpen(false);
+          fetch('/api/excel-online/config')
+            .then((r) => r.json())
+            .then((data) => setExcelOnlineConfig(data))
+            .catch(() => {});
+        }}
+        processos={processos}
+        isVisitante={isVisitante}
       />
 
       <footer className="mt-auto border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#111827] py-6 transition-colors">

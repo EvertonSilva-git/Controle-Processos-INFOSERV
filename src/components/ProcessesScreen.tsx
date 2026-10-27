@@ -57,6 +57,7 @@ interface ProcessesScreenProps {
   onSearchTermChange?: (term: string) => void;
   onExportExcel?: () => void;
   onOpenMigration?: () => void;
+  onOpenExcelOnline?: () => void;
   currentUser?: string | null;
   isVisitante?: boolean;
 }
@@ -79,6 +80,7 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
   onSearchTermChange,
   onExportExcel,
   onOpenMigration,
+  onOpenExcelOnline,
   currentUser,
   isVisitante = false,
 }) => {
@@ -690,6 +692,19 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
               >
                 <Cloud className="w-3.5 h-3.5 text-[#E30613]" />
                 <span className="hidden sm:inline">Migração</span>
+              </button>
+            )}
+
+            {/* Puxador em Tempo Real com Excel Online */}
+            {onOpenExcelOnline && (
+              <button
+                type="button"
+                onClick={onOpenExcelOnline}
+                title="Integrar e sincronizar com planilha no Excel Online em tempo real na nuvem"
+                className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 focus:outline-none transition-colors inline-flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0"
+              >
+                <Cloud className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="hidden sm:inline">Excel Online</span>
               </button>
             )}
           </div>
