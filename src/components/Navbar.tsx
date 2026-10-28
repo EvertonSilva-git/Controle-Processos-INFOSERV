@@ -17,6 +17,7 @@ import {
   UserCheck,
   Eye,
   Cloud,
+  Database,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -27,6 +28,8 @@ interface NavbarProps {
   onExportExcel: () => void;
   onOpenExcelOnline?: () => void;
   isExcelOnlineSyncActive?: boolean;
+  onOpenSupabaseModal?: () => void;
+  isSupabaseConnected?: boolean;
   onOpenMigration?: () => void;
   onResetData: () => void;
   theme: 'light' | 'dark';
@@ -48,6 +51,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onExportExcel,
   onOpenExcelOnline,
   isExcelOnlineSyncActive = false,
+  onOpenSupabaseModal,
+  isSupabaseConnected = false,
   onOpenMigration,
   onResetData,
   theme,
@@ -391,6 +396,33 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
                 <span className="text-[11px] font-semibold hidden md:inline">
                   {isExcelOnlineSyncActive ? 'Excel Online' : 'Excel Online'}
+                </span>
+              </button>
+            )}
+
+            {/* Botão de Conexão com Supabase / Cloudflare Realtime */}
+            {onOpenSupabaseModal && (
+              <button
+                onClick={onOpenSupabaseModal}
+                title={
+                  isSupabaseConnected
+                    ? 'Banco de Dados Supabase Conectado: Sincronização em tempo real ativa na nuvem'
+                    : 'Supabase / Cloudflare: clique para verificar status ou conectar banco de dados'
+                }
+                className={`h-8 px-2 sm:px-2.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0 border ${
+                  isSupabaseConnected
+                    ? 'text-emerald-800 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800'
+                    : 'text-neutral-700 dark:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700'
+                }`}
+              >
+                <div className="relative flex items-center">
+                  <Database className={`w-3.5 h-3.5 ${isSupabaseConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500 dark:text-neutral-400'}`} />
+                  {isSupabaseConnected && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 animate-pulse ring-2 ring-white dark:ring-neutral-900" />
+                  )}
+                </div>
+                <span className="text-[11px] font-semibold hidden md:inline">
+                  {isSupabaseConnected ? 'Supabase' : 'Supabase'}
                 </span>
               </button>
             )}

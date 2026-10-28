@@ -12,6 +12,15 @@ import { EditProcessModal } from './components/EditProcessModal';
 import { MigrationModal } from './components/MigrationModal';
 import { ExcelOnlineModal } from './components/ExcelOnlineModal';
 import { ExcelOnlineConfig } from './types/excelOnline';
+import { SupabaseSyncModal } from './components/SupabaseSyncModal';
+import {
+  getSupabaseCredentials,
+  fetchProcessosFromSupabase,
+  saveProcessoToSupabase,
+  deleteProcessoFromSupabase,
+  seedAllProcessosToSupabase,
+  subscribeToProcessosRealtime,
+} from './services/supabase';
 import {
   MigrationPackage,
   mergeMigrationProcessos,
@@ -268,6 +277,82 @@ export default function App() {
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [isExcelOnlineModalOpen, setIsExcelOnlineModalOpen] = useState(false);
   const [excelOnlineConfig, setExcelOnlineConfig] = useState<ExcelOnlineConfig | null>(null);
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
+  const [isSupabaseConnected, setIsSupabaseConnected] = useState(() => {
+    return getSupabaseCredentials().isConfigured;
+  });
+
+  // Sincronização direta com Supabase para Cloudflare Pages (banco de dados remoto em tempo real)
+  useEffect(() => {
+    let isMounted = true;
+    let unsubscribe: (() => void) | null = null;
+
+    const syncWithSupabase = async () => {
+      const creds = getSupabaseCredentials();
+      if (!creds.isConfigured) {
+        setIsSupabaseConnected(false);
+        return;
+      }
+
+      try {
+        const res = await fetchProcessosFromSupabase();
+        if (!isMounted) return;
+
+        if (res.success) {
+          setIsSupabaseConnected(true);
+          if (res.data.length > 0) {
+            // Sincroniza processos vindos do Supabase em nuvem
+            setProcessos(res.data.map(normalizarSituacaoProcesso));
+          } else {
+            // Se o banco remoto estiver vazio, envia a base local inicial automaticamente
+            const baseParaSeed = processos.length > 0 ? processos : INITIAL_PROCESSOS;
+            seedAllProcessosToSupabase(baseParaSeed).then((seedRes) => {
+              if (seedRes.success && seedRes.count > 0) {
+                console.log(`Supabase inicializado com ${seedRes.count} processos.`);
+              }
+            });
+          }
+
+          // Assina alterações em tempo real para sincronizar qualquer outro dispositivo conectado
+          unsubscribe = subscribeToProcessosRealtime(
+            (novo) => {
+              setProcessos((prev) => {
+                if (prev.some((p) => p.id === novo.id)) return prev;
+                return [normalizarSituacaoProcesso(novo), ...prev];
+              });
+            },
+            (atualizado) => {
+              const norm = normalizarSituacaoProcesso(atualizado);
+              setProcessos((prev) => {
+                const idx = prev.findIndex((p) => p.id === norm.id);
+                if (idx >= 0) {
+                  const copy = [...prev];
+                  copy[idx] = norm;
+                  return copy;
+                }
+                return [norm, ...prev];
+              });
+            },
+            (removidoId) => {
+              setProcessos((prev) => prev.filter((p) => p.id !== removidoId));
+            }
+          );
+        } else {
+          setIsSupabaseConnected(false);
+        }
+      } catch (err) {
+        console.warn('Erro ao conectar ao Supabase:', err);
+        setIsSupabaseConnected(false);
+      }
+    };
+
+    syncWithSupabase();
+
+    return () => {
+      isMounted = false;
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   // Carrega configuração de sincronização com Excel Online
   useEffect(() => {
@@ -335,6 +420,11 @@ export default function App() {
       return atualizados;
     });
 
+    // Grava diretamente na tabela do Supabase em nuvem
+    saveProcessoToSupabase(normalizado).catch((err) => {
+      console.warn('Aviso: erro ao sincronizar gravação com Supabase:', err);
+    });
+
     if (observacaoModalProcesso?.id === normalizado.id) {
       setObservacaoModalProcesso(normalizado);
     }
@@ -355,6 +445,11 @@ export default function App() {
         console.error('Erro ao salvar exclusão:', err);
       }
       return updated;
+    });
+
+    // Exclui diretamente da tabela do Supabase em nuvem
+    deleteProcessoFromSupabase(processoId).catch((err) => {
+      console.warn('Aviso: erro ao sincronizar exclusão com Supabase:', err);
     });
 
     if (observacaoModalProcesso?.id === processoId) {
@@ -386,6 +481,7 @@ export default function App() {
           observacoes: [...(p.observacoes || []), novaObs],
           atualizadoEm: agora,
         };
+        saveProcessoToSupabase(updated).catch(() => {});
         setObservacaoModalProcesso(updated);
         return updated;
       })
@@ -405,6 +501,7 @@ export default function App() {
           observacoes: p.observacoes.filter((o) => o.id !== obsId),
           atualizadoEm: new Date().toISOString(),
         };
+        saveProcessoToSupabase(updated).catch(() => {});
         setObservacaoModalProcesso(updated);
         return updated;
       })
@@ -771,6 +868,8 @@ export default function App() {
         onExportExcel={handleExportExcel}
         onOpenExcelOnline={() => setIsExcelOnlineModalOpen(true)}
         isExcelOnlineSyncActive={Boolean(excelOnlineConfig?.enabled && excelOnlineConfig?.url)}
+        onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+        isSupabaseConnected={isSupabaseConnected}
         onOpenMigration={() => setIsMigrationModalOpen(true)}
         onResetData={handleResetData}
         theme={theme}
@@ -809,6 +908,7 @@ export default function App() {
             }}
             onOpenMigration={() => setIsMigrationModalOpen(true)}
             onOpenExcelOnline={() => setIsExcelOnlineModalOpen(true)}
+            onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
             isVisitante={isVisitante}
           />
         )}
@@ -870,6 +970,7 @@ export default function App() {
             onExportExcel={handleExportExcel}
             onOpenMigration={() => setIsMigrationModalOpen(true)}
             onOpenExcelOnline={() => setIsExcelOnlineModalOpen(true)}
+            onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
             currentUser={currentUser}
             isVisitante={isVisitante}
           />
@@ -917,6 +1018,19 @@ export default function App() {
             .catch(() => {});
         }}
         processos={processos}
+        isVisitante={isVisitante}
+      />
+
+      <SupabaseSyncModal
+        isOpen={isSupabaseModalOpen}
+        onClose={() => {
+          setIsSupabaseModalOpen(false);
+          setIsSupabaseConnected(getSupabaseCredentials().isConfigured);
+        }}
+        processos={processos}
+        onProcessosUpdated={(updatedProcessos) => {
+          setProcessos(updatedProcessos.map(normalizarSituacaoProcesso));
+        }}
         isVisitante={isVisitante}
       />
 

@@ -26,6 +26,7 @@ import {
   AlertCircle,
   Timer,
   Cloud,
+  Database,
 } from 'lucide-react';
 import { RevalidationAlertBanner } from './RevalidationAlertBanner';
 import { InProgressCarousel } from './InProgressCarousel';
@@ -37,6 +38,7 @@ interface HomeScreenProps {
   onSelectProcesso: (processo: Processo) => void;
   onOpenMigration?: () => void;
   onOpenExcelOnline?: () => void;
+  onOpenSupabaseModal?: () => void;
   isVisitante?: boolean;
 }
 
@@ -47,6 +49,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onSelectProcesso,
   onOpenMigration,
   onOpenExcelOnline,
+  onOpenSupabaseModal,
   isVisitante = false,
 }) => {
   const totalProcessos = processos.length;
@@ -208,6 +211,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               >
                 <Cloud className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span>Excel Online</span>
+              </button>
+            )}
+
+            {onOpenSupabaseModal && (
+              <button
+                onClick={onOpenSupabaseModal}
+                title="Sincronizar processos diretamente com o banco de dados remoto Supabase / Cloudflare"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 transition-all shadow-xs hover:shadow-sm cursor-pointer"
+              >
+                <Database className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Supabase Nuvem</span>
               </button>
             )}
           </div>

@@ -37,6 +37,7 @@ import {
   ArrowRight,
   RefreshCw,
   Cloud,
+  Database,
 } from 'lucide-react';
 
 interface ProcessesScreenProps {
@@ -58,6 +59,7 @@ interface ProcessesScreenProps {
   onExportExcel?: () => void;
   onOpenMigration?: () => void;
   onOpenExcelOnline?: () => void;
+  onOpenSupabaseModal?: () => void;
   currentUser?: string | null;
   isVisitante?: boolean;
 }
@@ -81,6 +83,7 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
   onExportExcel,
   onOpenMigration,
   onOpenExcelOnline,
+  onOpenSupabaseModal,
   currentUser,
   isVisitante = false,
 }) => {
@@ -705,6 +708,19 @@ export const ProcessesScreen: React.FC<ProcessesScreenProps> = ({
               >
                 <Cloud className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span className="hidden sm:inline">Excel Online</span>
+              </button>
+            )}
+
+            {/* Banco de Dados Supabase / Cloudflare Sync */}
+            {onOpenSupabaseModal && (
+              <button
+                type="button"
+                onClick={onOpenSupabaseModal}
+                title="Sincronizar processos diretamente com o banco de dados remoto Supabase / Cloudflare"
+                className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 focus:outline-none transition-colors inline-flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0"
+              >
+                <Database className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="hidden sm:inline">Supabase</span>
               </button>
             )}
           </div>
