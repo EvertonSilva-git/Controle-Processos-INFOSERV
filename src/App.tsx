@@ -302,7 +302,14 @@ export default function App() {
           setIsSupabaseConnected(true);
           if (res.data.length > 0) {
             // Sincroniza processos vindos do Supabase em nuvem
-            setProcessos(res.data.map(normalizarSituacaoProcesso));
+            const normalizados = res.data.map(normalizarSituacaoProcesso);
+            setProcessos(normalizados);
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizados));
+              localStorage.setItem(INITIALIZED_FLAG, 'true');
+            } catch (e) {
+              // ignore
+            }
           } else {
             // Se o banco remoto estiver vazio, envia a base local inicial automaticamente
             const baseParaSeed = processos.length > 0 ? processos : INITIAL_PROCESSOS;

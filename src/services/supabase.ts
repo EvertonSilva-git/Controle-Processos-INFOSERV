@@ -1,25 +1,41 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Processo, CnpjOption } from '../types/process';
 
+// Credenciais padrão do projeto Supabase (fallback automático para qualquer navegador/dispositivo)
+export const DEFAULT_SUPABASE_URL = 'https://wrdxdclyvdcylzghszxo.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyZHhkY2x5dmRjeWx6Z2hzenhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxOTQ3NTAsImV4cCI6MjEwODc3MDc1MH0.23LES9RfPA9uCpeuOvBgPjSi4hXXSu0YvI4zhyY_oQA';
+
 const ENV_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
 const ENV_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
-// Permite ler do ambiente ou de override manual do usuário no navegador
+// Permite ler do ambiente ou de override manual no navegador com credenciais padrão como fallback automático
 export function getSupabaseCredentials() {
   const customUrl = typeof window !== 'undefined' ? localStorage.getItem('shineray_custom_supabase_url') : null;
   const customKey = typeof window !== 'undefined' ? localStorage.getItem('shineray_custom_supabase_anon_key') : null;
 
-  const url = customUrl || ENV_URL;
-  const key = customKey || ENV_KEY;
+  if (customUrl && customKey) {
+    return {
+      url: customUrl.trim(),
+      key: customKey.trim(),
+      isConfigured: true,
+      isCustom: true,
+    };
+  }
+
+  const validEnvUrl = ENV_URL && !ENV_URL.includes('your-project-id') && ENV_URL.startsWith('https://');
+  const validEnvKey = ENV_KEY && !ENV_KEY.includes('your-anon-public-key');
+
+  const url = validEnvUrl ? ENV_URL : DEFAULT_SUPABASE_URL;
+  const key = validEnvKey ? ENV_KEY : DEFAULT_SUPABASE_ANON_KEY;
 
   const isConfigured = Boolean(
     url &&
     key &&
-    !url.includes('your-project-id') &&
     url.startsWith('https://')
   );
 
-  return { url, key, isConfigured, isCustom: Boolean(customUrl && customKey) };
+  return { url, key, isConfigured, isCustom: false };
 }
 
 let cachedClient: SupabaseClient | null = null;
